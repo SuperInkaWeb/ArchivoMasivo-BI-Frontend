@@ -19,6 +19,7 @@ const tree = authEnabled ? (
     authorizationParams={{
       redirect_uri: window.location.origin,
       audience: auth0Config.audience,
+      scope: "openid profile email offline_access",
     }}
     cacheLocation="localstorage"
     useRefreshTokens

@@ -13,13 +13,17 @@ function FullScreen({ children }: { children: ReactNode }) {
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated, error, loginWithRedirect, getAccessTokenSilently } = useAuth0();
 
-  // Conecta el proveedor de token para que api.ts adjunte el Bearer en cada llamada.
-  useEffect(() => {
-    if (isAuthenticated) {
-      setTokenGetter(() => getAccessTokenSilently());
-    }
-    return () => setTokenGetter(null);
-  }, [isAuthenticated, getAccessTokenSilently]);
+  // Conecta el proveedor de token en la fase de RENDER (no en un efecto): los efectos
+  // de los componentes hijos corren antes que los del padre, así que si esto fuera un
+  // useEffect la primera llamada al backend saldría sin token. Registrarlo en render
+  // garantiza que api.ts ya tenga el Bearer cuando los hijos monten y hagan su fetch.
+  if (isAuthenticated) {
+    setTokenGetter(() => getAccessTokenSilently());
+  } else {
+    setTokenGetter(null);
+  }
+
+  useEffect(() => () => setTokenGetter(null), []);
 
   if (isLoading) {
     return (
