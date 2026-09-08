@@ -19,6 +19,14 @@ export interface DatasetSummary {
 
 export interface DatasetDetail extends DatasetSummary {
   columns: ColumnInfo[];
+  sheets: string[];
+  active_sheet: string | null;
+}
+
+export interface DistinctValues {
+  column: string;
+  values: string[];
+  truncated: boolean;
 }
 
 export type Operator =
@@ -44,11 +52,22 @@ export type DownloadFormat = "csv" | "xlsx";
 
 export type FilterValue = string | number | boolean | Array<string | number> | null;
 
-export interface FilterCondition {
+/** Hoja del árbol: una condición sobre una columna. */
+export interface FilterLeaf {
+  type: "condition";
   column: string;
   operator: Operator;
   value?: FilterValue;
 }
+
+/** Grupo del árbol: un conector (AND/OR) con hijos (hojas u otros grupos). */
+export interface FilterGroup {
+  type: "group";
+  combinator: Combinator;
+  children: FilterNode[];
+}
+
+export type FilterNode = FilterLeaf | FilterGroup;
 
 export interface SortSpec {
   column: string;
@@ -56,8 +75,7 @@ export interface SortSpec {
 }
 
 export interface FilterRequest {
-  conditions: FilterCondition[];
-  combinator: Combinator;
+  filter: FilterGroup | null; // árbol raíz; null = sin filtro
   select: string[];
   sort: SortSpec[];
 }

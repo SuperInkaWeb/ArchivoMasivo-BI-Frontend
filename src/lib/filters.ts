@@ -1,10 +1,18 @@
-/** Metadatos y utilidades de filtros del lado cliente.
+/** Metadatos y utilidades de filtros del lado cliente (árbol recursivo).
  *
- * Traduce lo que el usuario escribe al contrato del backend, coaccionando
+ * Traduce el árbol de borradores de la UI al contrato del backend, coaccionando
  * valores numéricos cuando la columna lo es. La validación real (whitelist,
- * binding) ocurre en el backend; aquí solo mejoramos la experiencia.
+ * binding, límites) ocurre en el backend; aquí solo mejoramos la experiencia.
  */
-import type { ColumnInfo, FilterCondition, FilterValue, Operator } from "@/types";
+import type {
+  ColumnInfo,
+  Combinator,
+  FilterGroup,
+  FilterLeaf,
+  FilterNode,
+  FilterValue,
+  Operator,
+} from "@/types";
 
 export interface OperatorOption {
   value: Operator;
@@ -54,17 +62,8 @@ function coerceScalar(raw: string, columnType: string, operator: Operator): stri
   return trimmed;
 }
 
-/** Construye el `value` que espera el backend a partir del texto del usuario. */
-export function buildFilterValue(raw: string, columnType: string, operator: Operator): FilterValue {
+function buildScalarValue(raw: string, columnType: string, operator: Operator): FilterValue {
   const kind = operatorValueKind(operator);
-  if (kind === "none") return null;
-  if (kind === "list") {
-    return raw
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0)
-      .map((part) => coerceScalar(part, columnType, operator));
-  }
   if (kind === "range") {
     const [from = "", to = ""] = raw.split(",");
     return [coerceScalar(from, columnType, operator), coerceScalar(to, columnType, operator)];
@@ -72,24 +71,65 @@ export function buildFilterValue(raw: string, columnType: string, operator: Oper
   return coerceScalar(raw, columnType, operator);
 }
 
-/** Borrador de condición en la UI (el valor se mantiene como texto crudo). */
-export interface ConditionDraft {
+function coerceListValues(values: string[], columnType: string, operator: Operator): Array<string | number> {
+  return values.map((value) => coerceScalar(value, columnType, operator));
+}
+
+// ---------------------------------------------------------------------------
+// Borradores del árbol de filtros (estado de la UI)
+// ---------------------------------------------------------------------------
+
+/** Hoja en la UI: mantiene el valor como texto crudo (`raw`) o casillas (`values`). */
+export interface LeafDraft {
   id: string;
+  type: "condition";
   column: string;
   operator: Operator;
   raw: string;
+  values: string[];
 }
 
-export function createDraft(defaultColumn: string): ConditionDraft {
-  return { id: crypto.randomUUID(), column: defaultColumn, operator: "eq", raw: "" };
+/** Grupo en la UI: conector + hijos (hojas u otros grupos). */
+export interface GroupDraft {
+  id: string;
+  type: "group";
+  combinator: Combinator;
+  children: NodeDraft[];
 }
 
-/** Convierte un borrador a la condición que consume el backend. */
-export function toFilterCondition(draft: ConditionDraft, columns: ColumnInfo[]): FilterCondition {
-  const columnType = columns.find((column) => column.name === draft.column)?.type ?? "VARCHAR";
-  const condition: FilterCondition = { column: draft.column, operator: draft.operator };
-  if (operatorValueKind(draft.operator) !== "none") {
-    condition.value = buildFilterValue(draft.raw, columnType, draft.operator);
-  }
-  return condition;
+export type NodeDraft = LeafDraft | GroupDraft;
+
+export function createLeaf(defaultColumn: string): LeafDraft {
+  return { id: crypto.randomUUID(), type: "condition", column: defaultColumn, operator: "eq", raw: "", values: [] };
+}
+
+export function createGroup(): GroupDraft {
+  return { id: crypto.randomUUID(), type: "group", combinator: "and", children: [] };
+}
+
+function leafToNode(leaf: LeafDraft, columns: ColumnInfo[]): FilterLeaf {
+  const columnType = columns.find((column) => column.name === leaf.column)?.type ?? "VARCHAR";
+  const kind = operatorValueKind(leaf.operator);
+  const node: FilterLeaf = { type: "condition", column: leaf.column, operator: leaf.operator };
+  if (kind === "none") return node;
+  node.value = kind === "list"
+    ? coerceListValues(leaf.values, columnType, leaf.operator)
+    : buildScalarValue(leaf.raw, columnType, leaf.operator);
+  return node;
+}
+
+/** Convierte un nodo borrador (hoja o grupo) al contrato del backend. */
+export function nodeToFilter(node: NodeDraft, columns: ColumnInfo[]): FilterNode {
+  if (node.type === "condition") return leafToNode(node, columns);
+  return {
+    type: "group",
+    combinator: node.combinator,
+    children: node.children.map((child) => nodeToFilter(child, columns)),
+  };
+}
+
+/** Árbol raíz -> filtro para la petición. Devuelve null si no hay condiciones. */
+export function rootToFilter(root: GroupDraft, columns: ColumnInfo[]): FilterGroup | null {
+  if (root.children.length === 0) return null;
+  return nodeToFilter(root, columns) as FilterGroup;
 }

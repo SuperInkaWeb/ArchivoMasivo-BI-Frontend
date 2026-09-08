@@ -1,13 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { formatNumber } from "@/lib/utils";
-import type { PreviewResponse } from "@/types";
+import type { PreviewResponse, SortSpec } from "@/types";
 
 interface PreviewTableProps {
   preview: PreviewResponse | null;
   loading: boolean;
   error: string | null;
+  sort: SortSpec | null;
+  onSort: (column: string) => void;
   onPageChange: (offset: number) => void;
+}
+
+function sortIndicator(column: string, sort: SortSpec | null): string {
+  if (!sort || sort.column !== column) return "↕";
+  return sort.direction === "asc" ? "▲" : "▼";
 }
 
 function renderCell(value: unknown): string {
@@ -16,7 +23,7 @@ function renderCell(value: unknown): string {
   return String(value);
 }
 
-export function PreviewTable({ preview, loading, error, onPageChange }: PreviewTableProps) {
+export function PreviewTable({ preview, loading, error, sort, onSort, onPageChange }: PreviewTableProps) {
   if (error) return <ErrorBanner message={error} />;
   if (!preview && loading) {
     return (
@@ -36,8 +43,8 @@ export function PreviewTable({ preview, loading, error, onPageChange }: PreviewT
   const canNext = offset + limit < total_matched;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs text-slate-500">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 items-center justify-between text-xs text-slate-500">
         <span>
           <strong className="text-slate-800">{formatNumber(total_matched)}</strong> filas coinciden
           {loading ? <Spinner className="ml-2 inline-block h-3 w-3 align-middle" /> : null}
@@ -47,16 +54,24 @@ export function PreviewTable({ preview, loading, error, onPageChange }: PreviewT
         </span>
       </div>
 
-      <div className="thin-scroll overflow-x-auto rounded-lg border border-slate-200">
+      <div className="thin-scroll min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-slate-50 text-left">
               {columns.map((column) => (
                 <th
                   key={column}
-                  className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium text-slate-600"
+                  className="sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-slate-50 p-0 font-medium text-slate-600"
                 >
-                  {column}
+                  <button
+                    type="button"
+                    onClick={() => onSort(column)}
+                    className="flex w-full items-center gap-1 px-3 py-2 text-left hover:bg-slate-100"
+                    title="Ordenar por esta columna"
+                  >
+                    <span>{column}</span>
+                    <span className="text-[10px] text-slate-400">{sortIndicator(column, sort)}</span>
+                  </button>
                 </th>
               ))}
             </tr>
@@ -83,7 +98,7 @@ export function PreviewTable({ preview, loading, error, onPageChange }: PreviewT
         </table>
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-2">
         <Button
           variant="secondary"
           size="sm"

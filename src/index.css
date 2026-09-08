@@ -12,6 +12,9 @@ body,
 
 body {
   margin: 0;
+  /* La app es un shell de altura fija: el scroll ocurre dentro de cada zona,
+     nunca en el documento. */
+  overflow: hidden;
   background-color: #f8fafc; /* slate-50 */
   color: #0f172a; /* slate-900 */
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

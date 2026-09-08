@@ -10,6 +10,7 @@ import {
 import type {
   DatasetDetail,
   DatasetSummary,
+  DistinctValues,
   DownloadRequest,
   PreviewRequest,
   PreviewResponse,
@@ -46,4 +47,18 @@ export function previewDataset(datasetId: string, request: PreviewRequest): Prom
 
 export function downloadDataset(datasetId: string, request: DownloadRequest): Promise<DownloadedFile> {
   return postForFile(`/datasets/${datasetId}/download`, request, `filtrado.${request.format}`);
+}
+
+export function columnValues(
+  datasetId: string,
+  column: string,
+  search?: string,
+): Promise<DistinctValues> {
+  const params = new URLSearchParams({ column });
+  if (search) params.set("search", search);
+  return getJson<DistinctValues>(`/datasets/${datasetId}/values?${params.toString()}`);
+}
+
+export function changeSheet(datasetId: string, sheet: string): Promise<DatasetDetail> {
+  return postJson<DatasetDetail>(`/datasets/${datasetId}/sheet`, { sheet });
 }

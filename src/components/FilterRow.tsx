@@ -1,15 +1,17 @@
 import { Input, Select } from "@/components/ui/field";
-import { OPERATOR_OPTIONS, operatorValueKind, type ConditionDraft } from "@/lib/filters";
+import { ValuePicker } from "@/components/ValuePicker";
+import { OPERATOR_OPTIONS, operatorValueKind, type LeafDraft } from "@/lib/filters";
 import type { ColumnInfo, Operator } from "@/types";
 
 interface FilterRowProps {
-  draft: ConditionDraft;
+  datasetId: string;
+  draft: LeafDraft;
   columns: ColumnInfo[];
-  onChange: (draft: ConditionDraft) => void;
+  onChange: (draft: LeafDraft) => void;
   onRemove: (id: string) => void;
 }
 
-export function FilterRow({ draft, columns, onChange, onRemove }: FilterRowProps) {
+export function FilterRow({ datasetId, draft, columns, onChange, onRemove }: FilterRowProps) {
   const kind = operatorValueKind(draft.operator);
 
   return (
@@ -38,10 +40,17 @@ export function FilterRow({ draft, columns, onChange, onRemove }: FilterRowProps
 
       {kind === "none" ? (
         <span className="px-1 text-xs text-slate-400">sin valor</span>
+      ) : kind === "list" ? (
+        <ValuePicker
+          datasetId={datasetId}
+          column={draft.column}
+          selected={draft.values}
+          onChange={(values) => onChange({ ...draft, values })}
+        />
       ) : (
         <Input
           value={draft.raw}
-          placeholder={placeholderFor(kind)}
+          placeholder={kind === "range" ? "desde, hasta" : "valor"}
           onChange={(event) => onChange({ ...draft, raw: event.target.value })}
         />
       )}
@@ -56,10 +65,4 @@ export function FilterRow({ draft, columns, onChange, onRemove }: FilterRowProps
       </button>
     </div>
   );
-}
-
-function placeholderFor(kind: ReturnType<typeof operatorValueKind>): string {
-  if (kind === "list") return "valor1, valor2, valor3";
-  if (kind === "range") return "desde, hasta";
-  return "valor";
 }

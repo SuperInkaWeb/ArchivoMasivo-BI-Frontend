@@ -1,88 +1,51 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/field";
-import { FilterRow } from "@/components/FilterRow";
-import { createDraft, toFilterCondition, type ConditionDraft } from "@/lib/filters";
-import type { ColumnInfo, Combinator, FilterCondition } from "@/types";
+import { FilterGroupEditor } from "@/components/FilterGroupEditor";
+import { createGroup, rootToFilter, type GroupDraft } from "@/lib/filters";
+import type { ColumnInfo, FilterGroup } from "@/types";
 
 interface FilterBuilderProps {
+  datasetId: string;
   columns: ColumnInfo[];
   applying: boolean;
-  onApply: (conditions: FilterCondition[], combinator: Combinator) => void;
+  onApply: (filter: FilterGroup | null) => void;
 }
 
-export function FilterBuilder({ columns, applying, onApply }: FilterBuilderProps) {
-  const [drafts, setDrafts] = useState<ConditionDraft[]>([]);
-  const [combinator, setCombinator] = useState<Combinator>("and");
-
-  const firstColumn = columns[0]?.name ?? "";
-
-  function addCondition() {
-    setDrafts((current) => [...current, createDraft(firstColumn)]);
-  }
-
-  function updateDraft(next: ConditionDraft) {
-    setDrafts((current) => current.map((draft) => (draft.id === next.id ? next : draft)));
-  }
-
-  function removeDraft(id: string) {
-    setDrafts((current) => current.filter((draft) => draft.id !== id));
-  }
+/** Constructor de filtros con grupos anidados. Posee el árbol raíz de borradores. */
+export function FilterBuilder({ datasetId, columns, applying, onApply }: FilterBuilderProps) {
+  const [root, setRoot] = useState<GroupDraft>(() => createGroup());
 
   function apply() {
-    onApply(
-      drafts.map((draft) => toFilterCondition(draft, columns)),
-      combinator,
-    );
+    onApply(rootToFilter(root, columns));
   }
 
   function clearAll() {
-    setDrafts([]);
-    onApply([], combinator);
+    setRoot(createGroup());
+    onApply(null);
   }
 
   return (
     <div className="space-y-3">
-      {drafts.length > 1 ? (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>Combinar con</span>
-          <Select
-            className="h-8 w-28"
-            value={combinator}
-            onChange={(event) => setCombinator(event.target.value as Combinator)}
-          >
-            <option value="and">Y (todas)</option>
-            <option value="or">O (alguna)</option>
-          </Select>
-        </div>
+      {root.children.length === 0 ? (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Sin condiciones: se incluirán todas las filas. Agrega una condición (o un subgrupo con
+          su propio Y/O) para filtrar.
+        </p>
       ) : null}
 
-      {drafts.length === 0 ? (
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Sin condiciones: se incluirán todas las filas. Agrega una condición para filtrar.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {drafts.map((draft) => (
-            <FilterRow
-              key={draft.id}
-              draft={draft}
-              columns={columns}
-              onChange={updateDraft}
-              onRemove={removeDraft}
-            />
-          ))}
-        </div>
-      )}
+      <FilterGroupEditor
+        node={root}
+        datasetId={datasetId}
+        columns={columns}
+        depth={0}
+        onChange={setRoot}
+      />
 
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button variant="secondary" size="sm" onClick={addCondition}>
-          + Agregar condición
-        </Button>
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <Button size="sm" onClick={apply} disabled={applying}>
           Aplicar filtros
         </Button>
-        {drafts.length > 0 ? (
+        {root.children.length > 0 ? (
           <Button variant="ghost" size="sm" onClick={clearAll} disabled={applying}>
             Limpiar
           </Button>
