@@ -2,6 +2,9 @@
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+/** URL base del backend (para subidas por XHR que necesitan la URL absoluta). */
+export const API_BASE_URL = BASE_URL;
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -20,6 +23,16 @@ let tokenGetter: TokenGetter | null = null;
 
 export function setTokenGetter(getter: TokenGetter | null): void {
   tokenGetter = getter;
+}
+
+/** Devuelve el token actual (o null). Para llamadas por XHR fuera de fetch. */
+export async function getAuthToken(): Promise<string | null> {
+  if (!tokenGetter) return null;
+  try {
+    return await tokenGetter();
+  } catch {
+    return null;
+  }
 }
 
 async function authHeader(): Promise<Record<string, string>> {
@@ -60,13 +73,6 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
       headers: { "Content-Type": "application/json", ...(await authHeader()) },
       body: JSON.stringify(body),
     }),
-  );
-  return response.json() as Promise<T>;
-}
-
-export async function postForm<T>(path: string, form: FormData): Promise<T> {
-  const response = await ensureOk(
-    await fetch(`${BASE_URL}${path}`, { method: "POST", headers: await authHeader(), body: form }),
   );
   return response.json() as Promise<T>;
 }

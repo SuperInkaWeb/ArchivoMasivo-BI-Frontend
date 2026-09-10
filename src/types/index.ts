@@ -29,6 +29,12 @@ export interface DistinctValues {
   truncated: boolean;
 }
 
+export interface UploadTicket {
+  dataset: DatasetSummary;
+  upload_url: string;
+  direct_to_storage: boolean;
+}
+
 export type Operator =
   | "eq"
   | "ne"

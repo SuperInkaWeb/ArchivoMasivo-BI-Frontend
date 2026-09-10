@@ -1,9 +1,10 @@
 /** Servicio de datasets: encapsula todas las llamadas al backend. */
 import {
+  API_BASE_URL,
   deleteResource,
+  getAuthToken,
   getJson,
   postForFile,
-  postForm,
   postJson,
   type DownloadedFile,
 } from "@/lib/api";
@@ -14,19 +15,46 @@ import type {
   DownloadRequest,
   PreviewRequest,
   PreviewResponse,
+  UploadTicket,
 } from "@/types";
 
-interface UploadResult {
-  datasets: DatasetSummary[];
+const UPLOAD_CONTENT_TYPE = "application/octet-stream";
+
+/** Sube un archivo en dos pasos: pide URL, sube (con progreso) y confirma. */
+export async function uploadFile(
+  file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<DatasetSummary> {
+  const ticket = await postJson<UploadTicket>("/datasets/upload-url", { filename: file.name });
+  await putWithProgress(ticket, file, onProgress);
+  return postJson<DatasetSummary>(`/datasets/${ticket.dataset.id}/uploaded`, {});
 }
 
-export async function uploadFiles(files: File[]): Promise<DatasetSummary[]> {
-  const form = new FormData();
-  for (const file of files) {
-    form.append("files", file);
-  }
-  const result = await postForm<UploadResult>("/datasets/upload", form);
-  return result.datasets;
+/** PUT del archivo con barra de progreso (a R2 directo o al backend en local). */
+async function putWithProgress(
+  ticket: UploadTicket,
+  file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<void> {
+  const url = ticket.direct_to_storage ? ticket.upload_url : `${API_BASE_URL}${ticket.upload_url}`;
+  // R2 usa URL prefirmada (sin token); el endpoint local del backend sí requiere token.
+  const token = ticket.direct_to_storage ? null : await getAuthToken();
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", UPLOAD_CONTENT_TYPE);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`La subida falló (HTTP ${xhr.status})`));
+    xhr.onerror = () => reject(new Error("Fallo de red durante la subida"));
+    xhr.send(file);
+  });
 }
 
 export function listDatasets(): Promise<DatasetSummary[]> {

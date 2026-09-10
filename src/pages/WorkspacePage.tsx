@@ -16,7 +16,7 @@ import {
   deleteDataset,
   downloadDataset,
   previewDataset,
-  uploadFiles,
+  uploadFile,
 } from "@/services/datasets";
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
 import type {
@@ -43,6 +43,7 @@ export function WorkspacePage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -98,12 +99,16 @@ export function WorkspacePage() {
       setUploading(true);
       setActionError(null);
       try {
-        await uploadFiles(files);
+        for (const file of files) {
+          setUploadProgress(0);
+          await uploadFile(file, setUploadProgress);
+        }
         await refresh();
       } catch (err) {
         setActionError(errorMessage(err));
       } finally {
         setUploading(false);
+        setUploadProgress(null);
       }
     },
     [refresh],
@@ -195,7 +200,7 @@ export function WorkspacePage() {
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
             <Card className="shrink-0">
               <CardBody>
-                <UploadDropzone onUpload={handleUpload} busy={uploading} />
+                <UploadDropzone onUpload={handleUpload} busy={uploading} progress={uploadProgress} />
               </CardBody>
             </Card>
             <Card className="flex h-[50vh] min-h-0 flex-col lg:h-auto lg:flex-1">

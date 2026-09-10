@@ -8,9 +8,10 @@ const ACCEPTED = ".csv,.txt,.xlsx,.xls";
 interface UploadDropzoneProps {
   onUpload: (files: File[]) => void;
   busy: boolean;
+  progress?: number | null; // 0..1 mientras se sube el archivo
 }
 
-export function UploadDropzone({ onUpload, busy }: UploadDropzoneProps) {
+export function UploadDropzone({ onUpload, busy, progress }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -50,9 +51,18 @@ export function UploadDropzone({ onUpload, busy }: UploadDropzoneProps) {
       </p>
       <p className="text-xs text-slate-400">CSV, TXT o Excel — se aceptan varios a la vez</p>
       {busy ? (
-        <span className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500">
-          <Spinner /> Subiendo…
-        </span>
+        <div className="mt-2 w-full max-w-xs">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Spinner className="h-3 w-3" />
+            <span>Subiendo… {progress != null ? `${Math.round(progress * 100)}%` : ""}</span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-slate-800 transition-[width]"
+              style={{ width: `${Math.round((progress ?? 0) * 100)}%` }}
+            />
+          </div>
+        </div>
       ) : null}
       <input
         ref={inputRef}
