@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
 
-const ACCEPTED = ".csv,.txt,.xlsx,.xls";
+// .xls (Excel 97-2003) no es compatible: el backend solo lee CSV/TXT y .xlsx (OOXML).
+const ACCEPTED = ".csv,.txt,.xlsx";
 
 interface UploadDropzoneProps {
   onUpload: (files: File[]) => void;
@@ -49,7 +50,7 @@ export function UploadDropzone({ onUpload, busy, progress }: UploadDropzoneProps
           selecciónalos
         </button>
       </p>
-      <p className="text-xs text-slate-400">CSV, TXT o Excel — se aceptan varios a la vez</p>
+      <p className="text-xs text-slate-400">CSV, TXT o Excel (.xlsx) — se aceptan varios a la vez</p>
       {busy ? (
         <div className="mt-2 w-full max-w-xs">
           <div className="flex items-center gap-2 text-xs text-slate-500">
