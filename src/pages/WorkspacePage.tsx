@@ -287,6 +287,11 @@ export function WorkspacePage() {
                     <PreviewTable
                       preview={preview}
                       loading={previewLoading}
+                      loadingLabel={
+                        appliedFilter
+                          ? "Aplicando filtros…"
+                          : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
+                      }
                       error={previewError}
                       sort={sort}
                       onSort={handleSort}

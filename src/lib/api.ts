@@ -61,19 +61,58 @@ async function ensureOk(response: Response): Promise<Response> {
   return response;
 }
 
+// ---------------------------------------------------------------------------
+// Reintento ante fallos de red transitorios (p. ej. "Failed to fetch" cuando la
+// conexión se cae durante la primera lectura en frío de un archivo grande).
+// ---------------------------------------------------------------------------
+const NETWORK_RETRIES = 2; // reintentos extra tras el intento inicial
+const RETRY_BASE_DELAY_MS = 600; // backoff lineal entre reintentos
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * `fetch` que reintenta SOLO cuando la propia llamada lanza (error de red: la
+ * petición no llegó a completarse). No reintenta respuestas HTTP ya recibidas
+ * (4xx/5xx): son deterministas y podrían corresponder a operaciones no idempotentes.
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= NETWORK_RETRIES; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (networkError) {
+      lastError = networkError;
+      if (attempt < NETWORK_RETRIES) await delay(RETRY_BASE_DELAY_MS * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 export async function getJson<T>(path: string): Promise<T> {
-  const response = await ensureOk(await fetch(`${BASE_URL}${path}`, { headers: await authHeader() }));
+  // Los GET son idempotentes: seguro reintentar ante caída de red.
+  const response = await ensureOk(
+    await fetchWithRetry(`${BASE_URL}${path}`, { headers: await authHeader() }),
+  );
   return response.json() as Promise<T>;
 }
 
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await ensureOk(
-    await fetch(`${BASE_URL}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify(body),
-    }),
-  );
+export async function postJson<T>(
+  path: string,
+  body: unknown,
+  options?: { retry?: boolean },
+): Promise<T> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify(body),
+  };
+  // `retry` solo debe activarse en POST de solo lectura (sin efectos secundarios).
+  const request = options?.retry
+    ? fetchWithRetry(`${BASE_URL}${path}`, init)
+    : fetch(`${BASE_URL}${path}`, init);
+  const response = await ensureOk(await request);
   return response.json() as Promise<T>;
 }
 

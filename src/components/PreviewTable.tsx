@@ -6,6 +6,7 @@ import type { PreviewResponse, SortSpec } from "@/types";
 interface PreviewTableProps {
   preview: PreviewResponse | null;
   loading: boolean;
+  loadingLabel?: string;
   error: string | null;
   sort: SortSpec | null;
   onSort: (column: string) => void;
@@ -23,12 +24,20 @@ function renderCell(value: unknown): string {
   return String(value);
 }
 
-export function PreviewTable({ preview, loading, error, sort, onSort, onPageChange }: PreviewTableProps) {
+export function PreviewTable({
+  preview,
+  loading,
+  loadingLabel,
+  error,
+  sort,
+  onSort,
+  onPageChange,
+}: PreviewTableProps) {
   if (error) return <ErrorBanner message={error} />;
   if (!preview && loading) {
     return (
       <div className="flex items-center gap-2 py-8 text-sm text-slate-500">
-        <Spinner /> Aplicando filtros…
+        <Spinner /> {loadingLabel ?? "Cargando…"}
       </div>
     );
   }

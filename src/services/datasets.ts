@@ -70,7 +70,8 @@ export function deleteDataset(datasetId: string): Promise<void> {
 }
 
 export function previewDataset(datasetId: string, request: PreviewRequest): Promise<PreviewResponse> {
-  return postJson<PreviewResponse>(`/datasets/${datasetId}/preview`, request);
+  // Solo lectura: reintenta ante fallos de red transitorios (archivos grandes en frío).
+  return postJson<PreviewResponse>(`/datasets/${datasetId}/preview`, request, { retry: true });
 }
 
 export function downloadDataset(datasetId: string, request: DownloadRequest): Promise<DownloadedFile> {
