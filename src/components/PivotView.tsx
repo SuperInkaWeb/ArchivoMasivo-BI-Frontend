@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/DataTable";
 import { Label, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { pivotDataset, savePivot } from "@/services/datasets";
-import { errorMessage, formatNumber } from "@/lib/utils";
+import { errorMessage } from "@/lib/utils";
 import type { Aggregation, DatasetDetail, Measure, PivotResponse } from "@/types";
 
 const PAGE_SIZE = 100;
@@ -20,11 +21,6 @@ const AGGREGATIONS: Array<{ value: Aggregation; label: string }> = [
 interface PivotViewProps {
   dataset: DatasetDetail;
   onSaved: (name: string) => void;
-}
-
-function renderCell(value: unknown): string {
-  if (value === null || value === undefined) return "—";
-  return String(value);
 }
 
 export function PivotView({ dataset, onSaved }: PivotViewProps) {
@@ -231,83 +227,18 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      {result ? <PivotResult result={result} loading={loading} onPageChange={(next) => run(next)} /> : null}
-    </div>
-  );
-}
-
-function PivotResult({
-  result,
-  loading,
-  onPageChange,
-}: {
-  result: PivotResponse;
-  loading: boolean;
-  onPageChange: (offset: number) => void;
-}) {
-  const { columns, rows, total_matched, limit, offset } = result;
-  const from = total_matched === 0 ? 0 : offset + 1;
-  const to = Math.min(offset + limit, total_matched);
-  const canPrev = offset > 0;
-  const canNext = offset + limit < total_matched;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>
-          <strong className="text-slate-800">{formatNumber(total_matched)}</strong> filas en el reporte
-        </span>
-        <span>
-          Mostrando {formatNumber(from)}–{formatNumber(to)}
-        </span>
-      </div>
-
-      <div className="thin-scroll max-h-[48vh] overflow-auto rounded-lg border border-slate-200">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left">
-              {columns.map((column) => (
-                <th
-                  key={column}
-                  className="sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-600"
-                >
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index} className="odd:bg-white even:bg-slate-50/40">
-                {columns.map((column) => (
-                  <td key={column} className="whitespace-nowrap px-3 py-1.5 text-slate-700">
-                    {renderCell(row[column])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!canPrev || loading}
-          onClick={() => onPageChange(Math.max(0, offset - limit))}
-        >
-          Anterior
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!canNext || loading}
-          onClick={() => onPageChange(offset + limit)}
-        >
-          Siguiente
-        </Button>
-      </div>
+      {result ? (
+        <DataTable
+          columns={result.columns}
+          rows={result.rows}
+          total={result.total_matched}
+          limit={result.limit}
+          offset={result.offset}
+          loading={loading}
+          onPageChange={(next) => run(next)}
+          countLabel="filas en el reporte"
+        />
+      ) : null}
     </div>
   );
 }

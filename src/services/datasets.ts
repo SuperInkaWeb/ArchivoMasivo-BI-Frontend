@@ -9,6 +9,8 @@ import {
   type DownloadedFile,
 } from "@/lib/api";
 import type {
+  ComputeRequest,
+  ComputeSaveRequest,
   DatasetDetail,
   DatasetSummary,
   DistinctValues,
@@ -103,4 +105,14 @@ export function pivotDataset(datasetId: string, request: PivotRequest): Promise<
 /** Guarda el pivote como un dataset nuevo (se materializa en segundo plano). */
 export function savePivot(datasetId: string, request: PivotSaveRequest): Promise<DatasetSummary> {
   return postJson<DatasetSummary>(`/datasets/${datasetId}/pivot/save`, request);
+}
+
+/** Aplica columnas calculadas y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
+export function computeDataset(datasetId: string, request: ComputeRequest): Promise<PreviewResponse> {
+  return postJson<PreviewResponse>(`/datasets/${datasetId}/compute`, request, { retry: true });
+}
+
+/** Guarda las columnas calculadas como un dataset nuevo (se materializa en segundo plano). */
+export function saveComputed(datasetId: string, request: ComputeSaveRequest): Promise<DatasetSummary> {
+  return postJson<DatasetSummary>(`/datasets/${datasetId}/compute/save`, request);
 }

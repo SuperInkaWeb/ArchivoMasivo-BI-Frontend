@@ -7,6 +7,7 @@ import { DatasetList } from "@/components/DatasetList";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { PreviewTable } from "@/components/PreviewTable";
 import { PivotView } from "@/components/PivotView";
+import { ComputeView } from "@/components/ComputeView";
 import { DownloadBar } from "@/components/DownloadBar";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
@@ -21,7 +22,6 @@ import {
 } from "@/services/datasets";
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
 import type {
-  DatasetOrigin,
   DatasetSummary,
   Delimiter,
   DownloadFormat,
@@ -31,7 +31,8 @@ import type {
 } from "@/types";
 
 const PAGE_SIZE = 100;
-type RightMode = "filter" | "pivot";
+type RightMode = "filter" | "pivot" | "compute";
+type OriginTab = "uploaded" | "derived";
 
 export function WorkspacePage() {
   const { datasets, loading, error, refresh } = useDatasets();
@@ -53,11 +54,14 @@ export function WorkspacePage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   // Pestaña de la lista (Originales / Reportes) y modo del panel derecho.
-  const [originTab, setOriginTab] = useState<DatasetOrigin>("uploaded");
+  const [originTab, setOriginTab] = useState<OriginTab>("uploaded");
   const [rightMode, setRightMode] = useState<RightMode>("filter");
-  const visibleDatasets = datasets.filter((dataset) => dataset.origin === originTab);
-  const uploadedCount = datasets.filter((dataset) => dataset.origin === "uploaded").length;
-  const pivotCount = datasets.filter((dataset) => dataset.origin === "pivot").length;
+  const isDerived = (dataset: DatasetSummary) => dataset.origin !== "uploaded";
+  const visibleDatasets = datasets.filter((dataset) =>
+    originTab === "uploaded" ? !isDerived(dataset) : isDerived(dataset),
+  );
+  const uploadedCount = datasets.filter((dataset) => !isDerived(dataset)).length;
+  const derivedCount = datasets.filter(isDerived).length;
 
   // Deselecciona si el dataset activo desaparece de la lista.
   useEffect(() => {
@@ -108,10 +112,10 @@ export function WorkspacePage() {
     setRightMode("filter");
   }
 
-  async function handlePivotSaved(name: string) {
+  async function handleDerivedSaved(name: string) {
     await refresh();
-    setOriginTab("pivot"); // muestra el reporte recién creado
-    setNotice(`Guardando el reporte "${name}"… aparecerá en Reportes cuando esté listo.`);
+    setOriginTab("derived"); // muestra el archivo derivado recién creado
+    setNotice(`Guardando "${name}"… aparecerá en Reportes cuando esté listo.`);
   }
 
   const handleUpload = useCallback(
@@ -240,8 +244,8 @@ export function WorkspacePage() {
                 >
                   Originales ({uploadedCount})
                 </TabButton>
-                <TabButton active={originTab === "pivot"} onClick={() => setOriginTab("pivot")}>
-                  Reportes ({pivotCount})
+                <TabButton active={originTab === "derived"} onClick={() => setOriginTab("derived")}>
+                  Reportes ({derivedCount})
                 </TabButton>
               </div>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto">
@@ -283,12 +287,15 @@ export function WorkspacePage() {
               </Card>
             ) : detail ? (
               <>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
                   <ModeButton active={rightMode === "filter"} onClick={() => setRightMode("filter")}>
                     Filtrar
                   </ModeButton>
                   <ModeButton active={rightMode === "pivot"} onClick={() => setRightMode("pivot")}>
                     Tabla dinámica
+                  </ModeButton>
+                  <ModeButton active={rightMode === "compute"} onClick={() => setRightMode("compute")}>
+                    Columnas calculadas
                   </ModeButton>
                 </div>
 
@@ -299,7 +306,17 @@ export function WorkspacePage() {
                       description="Agrupa, calcula métricas y guarda el resumen como un archivo nuevo."
                     />
                     <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-                      <PivotView dataset={detail} onSaved={handlePivotSaved} />
+                      <PivotView dataset={detail} onSaved={handleDerivedSaved} />
+                    </CardBody>
+                  </Card>
+                ) : rightMode === "compute" ? (
+                  <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
+                    <CardHeader
+                      title="Columnas calculadas"
+                      description="Crea columnas nuevas (unir texto, cálculos, fechas…) y guárdalas como un archivo nuevo."
+                    />
+                    <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
+                      <ComputeView dataset={detail} onSaved={handleDerivedSaved} />
                     </CardBody>
                   </Card>
                 ) : (

@@ -1,8 +1,8 @@
 /** Contratos compartidos con el backend (deben reflejar los schemas de FastAPI). */
 
 export type IngestStatus = "pending" | "processing" | "ready" | "failed";
-/** Cómo se creó el dataset: subido por el usuario o generado por un pivote. */
-export type DatasetOrigin = "uploaded" | "pivot";
+/** Cómo se creó el dataset: subido, o derivado (pivote / columnas calculadas). */
+export type DatasetOrigin = "uploaded" | "pivot" | "computed";
 
 export interface ColumnInfo {
   name: string;
@@ -136,5 +136,55 @@ export interface PivotResponse {
 }
 
 export interface PivotSaveRequest extends PivotRequest {
+  name: string;
+}
+
+// --- Columnas calculadas (árbol de expresiones) ---
+export type FunctionName =
+  | "concat"
+  | "upper"
+  | "lower"
+  | "trim"
+  | "length"
+  | "substr"
+  | "replace"
+  | "add"
+  | "sub"
+  | "mul"
+  | "div"
+  | "round"
+  | "if"
+  | "eq"
+  | "ne"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "and"
+  | "or"
+  | "not"
+  | "year"
+  | "month"
+  | "day"
+  | "datediff_days";
+
+export type Expression =
+  | { kind: "column"; name: string }
+  | { kind: "literal"; value: string | number | boolean | null }
+  | { kind: "function"; fn: FunctionName; args: Expression[] };
+
+export interface ComputedColumn {
+  name: string;
+  expression: Expression;
+}
+
+export interface ComputeRequest {
+  filter: FilterGroup | null;
+  columns: ComputedColumn[];
+  limit: number;
+  offset: number;
+}
+
+export interface ComputeSaveRequest extends ComputeRequest {
   name: string;
 }
