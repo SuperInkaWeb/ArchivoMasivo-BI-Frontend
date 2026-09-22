@@ -1,13 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
-import { formatNumber } from "@/lib/utils";
-import { MAX_SHEET_ROWS, useSheetData } from "@/hooks/useSheetData";
+import { FormulaBar } from "@/components/FormulaBar";
+import { StatusBar, type SelectionStats } from "@/components/StatusBar";
+import { useSheetData } from "@/hooks/useSheetData";
 import type { FilterGroup, SortSpec } from "@/types";
 
 const ROW_HEIGHT = 30;
 const COL_WIDTH = 150;
 const GUTTER_WIDTH = 56;
+// Tope de celdas a agregar en la selección (evita recorrer rangos gigantes).
+const MAX_SELECTION_AGG = 50_000;
+
+interface Cell {
+  row: number;
+  col: number;
+}
 
 /** Índice de columna a letra estilo hoja de cálculo (0 -> A, 26 -> AA). */
 function columnLetter(index: number): string {
@@ -59,6 +67,8 @@ export function SheetGrid({
     ready,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<Cell | null>(null);
+  const [active, setActive] = useState<Cell | null>(null);
 
   useEffect(() => {
     onTotalChange(total);
@@ -81,29 +91,67 @@ export function SheetGrid({
     if (items.length > 0) ensureRange(items[0].index, items[items.length - 1].index);
   }, [items, ensureRange]);
 
-  // Vuelve al inicio cuando cambian dataset / filtro / orden (los datos se reinician).
+  // Vuelve al inicio y limpia la selección al cambiar dataset / filtro / orden.
   const resetKey = `${datasetId}|${JSON.stringify(filter)}|${sort ? `${sort.column}:${sort.direction}` : ""}`;
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
     virtualizer.scrollToOffset(0);
+    setAnchor(null);
+    setActive(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
+
+  function selectCell(row: number, col: number, extend: boolean) {
+    setActive({ row, col });
+    if (!extend || !anchor) setAnchor({ row, col });
+  }
+
+  const rect =
+    anchor && active
+      ? {
+          r0: Math.min(anchor.row, active.row),
+          r1: Math.max(anchor.row, active.row),
+          c0: Math.min(anchor.col, active.col),
+          c1: Math.max(anchor.col, active.col),
+        }
+      : null;
+
+  const selection = useMemo<SelectionStats | null>(() => {
+    if (!rect) return null;
+    const area = (rect.r1 - rect.r0 + 1) * (rect.c1 - rect.c0 + 1);
+    if (area <= 1 || area > MAX_SELECTION_AGG) return null;
+    let count = 0;
+    let sum = 0;
+    let numeric = 0;
+    for (let r = rect.r0; r <= rect.r1; r += 1) {
+      const row = getRow(r);
+      if (!row) continue;
+      for (let c = rect.c0; c <= rect.c1; c += 1) {
+        const value = row[columns[c]];
+        if (value === null || value === undefined || value === "") continue;
+        count += 1;
+        if (typeof value !== "boolean") {
+          const parsed = typeof value === "number" ? value : Number(value);
+          if (!Number.isNaN(parsed)) {
+            sum += parsed;
+            numeric += 1;
+          }
+        }
+      }
+    }
+    return { count, sum: numeric > 0 ? sum : null, average: numeric > 0 ? sum / numeric : null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rect?.r0, rect?.r1, rect?.c0, rect?.c1, columns, getRow]);
+
+  const activeRow = active ? getRow(active.row) : undefined;
+  const activeRef = active ? `${columnLetter(active.col)}${active.row + 1}` : "";
+  const activeValue = active && activeRow ? renderCell(activeRow[columns[active.col]]) : "";
 
   const contentWidth = GUTTER_WIDTH + columns.length * COL_WIDTH;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex shrink-0 items-center justify-between text-xs text-slate-500">
-        <span>
-          <strong className="text-slate-800">{total != null ? formatNumber(total) : "…"}</strong> filas
-          {loading ? <Spinner className="ml-2 inline-block h-3 w-3 align-middle" /> : null}
-        </span>
-        {capped ? (
-          <span className="text-amber-600">
-            En pantalla: primeras {formatNumber(MAX_SHEET_ROWS)} · filtra o descarga para el resto
-          </span>
-        ) : null}
-      </div>
+      <FormulaBar cellRef={activeRef} value={activeValue} />
 
       {error ? <ErrorBanner message={error} /> : null}
 
@@ -151,6 +199,7 @@ export function SheetGrid({
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {items.map((item) => {
                 const row = getRow(item.index);
+                const rowInRange = rect ? item.index >= rect.r0 && item.index <= rect.r1 : false;
                 return (
                   <div
                     key={item.index}
@@ -158,24 +207,44 @@ export function SheetGrid({
                     style={{ top: 0, transform: `translateY(${item.start}px)`, height: ROW_HEIGHT }}
                   >
                     <div
-                      className="sticky left-0 z-10 flex items-center justify-center border-b border-r border-slate-200 bg-slate-50 text-[11px] text-slate-400"
+                      className={
+                        "sticky left-0 z-10 flex items-center justify-center border-b border-r border-slate-200 text-[11px] " +
+                        (rowInRange ? "bg-emerald-100 text-emerald-700" : "bg-slate-50 text-slate-400")
+                      }
                       style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
                     >
                       {item.index + 1}
                     </div>
-                    {columns.map((column) => (
-                      <div
-                        key={column}
-                        className="flex items-center overflow-hidden whitespace-nowrap border-b border-r border-slate-200 bg-white px-2 text-xs text-slate-700"
-                        style={{ width: COL_WIDTH, minWidth: COL_WIDTH }}
-                      >
-                        {row ? (
-                          <span className="truncate">{renderCell(row[column])}</span>
-                        ) : (
-                          <span className="text-slate-300">·</span>
-                        )}
-                      </div>
-                    ))}
+                    {columns.map((column, colIndex) => {
+                      const inRange =
+                        rect &&
+                        item.index >= rect.r0 &&
+                        item.index <= rect.r1 &&
+                        colIndex >= rect.c0 &&
+                        colIndex <= rect.c1;
+                      const isActive = active?.row === item.index && active?.col === colIndex;
+                      return (
+                        <div
+                          key={column}
+                          onClick={(event) => selectCell(item.index, colIndex, event.shiftKey)}
+                          className={
+                            "flex cursor-cell items-center overflow-hidden whitespace-nowrap border-b border-r border-slate-200 px-2 text-xs text-slate-700 " +
+                            (isActive
+                              ? "z-10 bg-emerald-50 ring-2 ring-inset ring-emerald-500"
+                              : inRange
+                                ? "bg-emerald-50"
+                                : "bg-white")
+                          }
+                          style={{ width: COL_WIDTH, minWidth: COL_WIDTH }}
+                        >
+                          {row ? (
+                            <span className="truncate">{renderCell(row[column])}</span>
+                          ) : (
+                            <span className="text-slate-300">·</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -183,6 +252,8 @@ export function SheetGrid({
           </div>
         )}
       </div>
+
+      <StatusBar total={total} capped={capped} loading={loading} selection={selection} />
     </div>
   );
 }
