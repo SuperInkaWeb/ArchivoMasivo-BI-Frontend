@@ -2,22 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/DataTable";
 import { FormatPicker } from "@/components/FormatPicker";
-import { Label, Select } from "@/components/ui/field";
+import { PivotFieldConfig } from "@/components/PivotFieldConfig";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadPivot, pivotDataset, savePivot } from "@/services/datasets";
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
-import type { Aggregation, DatasetDetail, Delimiter, DownloadFormat, Measure, PivotResponse } from "@/types";
+import type { DatasetDetail, Delimiter, DownloadFormat, Measure, PivotResponse } from "@/types";
 
 const PAGE_SIZE = 100;
-
-const AGGREGATIONS: Array<{ value: Aggregation; label: string }> = [
-  { value: "count", label: "Conteo" },
-  { value: "count_distinct", label: "Conteo único" },
-  { value: "sum", label: "Suma" },
-  { value: "avg", label: "Promedio" },
-  { value: "min", label: "Mínimo" },
-  { value: "max", label: "Máximo" },
-];
 
 interface PivotViewProps {
   dataset: DatasetDetail;
@@ -35,9 +26,6 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
-
-  const availableForGroup = columnNames.filter((name) => !groupBy.includes(name));
-  const availableForPivot = columnNames.filter((name) => !groupBy.includes(name));
 
   function validate(): string | null {
     if (groupBy.length === 0) return "Elige al menos una columna para agrupar.";
@@ -121,123 +109,17 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
     }
   }
 
-  function updateMeasure(index: number, patch: Partial<Measure>) {
-    setMeasures((current) => current.map((m, i) => (i === index ? { ...m, ...patch } : m)));
-  }
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Agrupar por */}
-      <div className="space-y-2">
-        <Label>Agrupar por (filas del reporte)</Label>
-        <div className="flex flex-wrap items-center gap-2">
-          {groupBy.map((name) => (
-            <span
-              key={name}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
-            >
-              {name}
-              <button
-                type="button"
-                className="text-slate-400 hover:text-red-600"
-                onClick={() => setGroupBy((current) => current.filter((c) => c !== name))}
-                aria-label={`Quitar ${name}`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {availableForGroup.length > 0 ? (
-            <Select
-              className="h-8 w-48"
-              value=""
-              onChange={(event) => {
-                if (event.target.value) setGroupBy((current) => [...current, event.target.value]);
-              }}
-            >
-              <option value="">+ Añadir columna…</option>
-              {availableForGroup.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Métricas */}
-      <div className="space-y-2">
-        <Label>Métricas (valores a calcular)</Label>
-        <div className="space-y-2">
-          {measures.map((measure, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <Select
-                className="h-8 w-36"
-                value={measure.aggregation}
-                onChange={(event) =>
-                  updateMeasure(index, { aggregation: event.target.value as Aggregation })
-                }
-              >
-                {AGGREGATIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                className="h-8 flex-1"
-                value={measure.column ?? ""}
-                onChange={(event) => updateMeasure(index, { column: event.target.value || null })}
-              >
-                <option value="">{measure.aggregation === "count" ? "— filas —" : "Elige columna…"}</option>
-                {columnNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </Select>
-              {measures.length > 1 ? (
-                <button
-                  type="button"
-                  className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
-                  onClick={() => setMeasures((current) => current.filter((_, i) => i !== index))}
-                  aria-label="Quitar métrica"
-                >
-                  Quitar
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setMeasures((current) => [...current, { aggregation: "count" }])}
-        >
-          + Añadir métrica
-        </Button>
-      </div>
-
-      {/* Cross-tab opcional */}
-      <div className="space-y-2">
-        <Label>Columnas (cross-tab, opcional)</Label>
-        <Select
-          className="h-8 w-full max-w-xs"
-          value={pivotColumn}
-          onChange={(event) => setPivotColumn(event.target.value)}
-        >
-          <option value="">— ninguna —</option>
-          {availableForPivot.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </Select>
-        <p className="text-xs text-slate-400">
-          Sus valores distintos se convierten en columnas del reporte (máx. 50).
-        </p>
-      </div>
+      <PivotFieldConfig
+        columns={columnNames}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+        measures={measures}
+        setMeasures={setMeasures}
+        pivotColumn={pivotColumn}
+        setPivotColumn={setPivotColumn}
+      />
 
       <div className="flex items-center gap-2">
         <Button onClick={() => run(0)} disabled={loading}>

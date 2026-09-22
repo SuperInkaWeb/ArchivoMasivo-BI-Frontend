@@ -10,6 +10,7 @@ import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
 import { SheetTabs } from "@/components/SheetTabs";
+import { Ribbon } from "@/components/Ribbon";
 import { DownloadBar } from "@/components/DownloadBar";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
@@ -240,20 +241,7 @@ export function WorkspacePage() {
               </Card>
             ) : detail ? (
               <>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <ModeButton active={rightMode === "filter"} onClick={() => setRightMode("filter")}>
-                    Filtrar
-                  </ModeButton>
-                  <ModeButton active={rightMode === "pivot"} onClick={() => setRightMode("pivot")}>
-                    Tabla dinámica
-                  </ModeButton>
-                  <ModeButton active={rightMode === "compute"} onClick={() => setRightMode("compute")}>
-                    Columnas calculadas
-                  </ModeButton>
-                  <ModeButton active={rightMode === "replace"} onClick={() => setRightMode("replace")}>
-                    Buscar y reemplazar
-                  </ModeButton>
-                </div>
+                <Ribbon mode={rightMode} onChange={setRightMode} />
 
                 {rightMode === "pivot" ? (
                   <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
@@ -394,30 +382,6 @@ function TabButton({
         (active
           ? "border-slate-900 text-slate-900"
           : "border-transparent text-slate-500 hover:text-slate-700")
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
-/** Conmutador del panel derecho (Filtrar / Tabla dinámica). */
-function ModeButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors " +
-        (active ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50")
       }
     >
       {children}
