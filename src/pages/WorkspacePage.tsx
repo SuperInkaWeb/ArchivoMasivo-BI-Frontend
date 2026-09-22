@@ -5,7 +5,7 @@ import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { DatasetList } from "@/components/DatasetList";
 import { FilterBuilder } from "@/components/FilterBuilder";
-import { PreviewTable } from "@/components/PreviewTable";
+import { SheetGrid } from "@/components/SheetGrid";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
@@ -14,24 +14,10 @@ import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
 import { useDatasets } from "@/hooks/useDatasets";
 import { useDatasetDetail } from "@/hooks/useDatasetDetail";
-import {
-  changeSheet,
-  deleteDataset,
-  downloadDataset,
-  previewDataset,
-  uploadFile,
-} from "@/services/datasets";
+import { changeSheet, deleteDataset, downloadDataset, uploadFile } from "@/services/datasets";
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
-import type {
-  DatasetSummary,
-  Delimiter,
-  DownloadFormat,
-  FilterGroup,
-  PreviewResponse,
-  SortSpec,
-} from "@/types";
+import type { DatasetSummary, Delimiter, DownloadFormat, FilterGroup, SortSpec } from "@/types";
 
-const PAGE_SIZE = 100;
 type RightMode = "filter" | "pivot" | "compute" | "replace";
 type OriginTab = "uploaded" | "derived";
 
@@ -43,10 +29,8 @@ export function WorkspacePage() {
   // Árbol de filtros aplicado; null = sin filtro (todas las filas).
   const [appliedFilter, setAppliedFilter] = useState<FilterGroup | null>(null);
   const [sort, setSort] = useState<SortSpec | null>(null);
-  const [offset, setOffset] = useState(0);
-  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [matchedCount, setMatchedCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -73,41 +57,11 @@ export function WorkspacePage() {
 
   const datasetReady = detail?.status === "ready";
 
-  // Carga la vista previa cuando el dataset está listo (filtro null = todas las filas).
-  useEffect(() => {
-    if (!selectedId || !datasetReady) return;
-    let active = true;
-    setPreviewLoading(true);
-    previewDataset(selectedId, {
-      filter: appliedFilter,
-      select: [],
-      sort: sort ? [sort] : [],
-      limit: PAGE_SIZE,
-      offset,
-    })
-      .then((result) => {
-        if (active) {
-          setPreview(result);
-          setPreviewError(null);
-        }
-      })
-      .catch((err) => {
-        if (active) setPreviewError(errorMessage(err));
-      })
-      .finally(() => {
-        if (active) setPreviewLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [selectedId, appliedFilter, sort, offset, datasetReady]);
-
   function handleSelect(dataset: DatasetSummary) {
     setSelectedId(dataset.id);
     setAppliedFilter(null); // vista completa inicial (sin filtro)
     setSort(null);
-    setOffset(0);
-    setPreview(null);
+    setMatchedCount(null);
     setActionError(null);
     setNotice(null);
     setRightMode("filter");
@@ -151,12 +105,10 @@ export function WorkspacePage() {
 
   function handleApply(filter: FilterGroup | null) {
     setAppliedFilter(filter);
-    setOffset(0);
   }
 
   // Ciclo de orden al clicar una columna: asc -> desc -> sin orden.
   function handleSort(column: string) {
-    setOffset(0);
     setSort((current) => {
       if (!current || current.column !== column) return { column, direction: "asc" };
       if (current.direction === "asc") return { column, direction: "desc" };
@@ -173,8 +125,7 @@ export function WorkspacePage() {
       // La hoja nueva puede tener otras columnas: reiniciamos filtro/orden.
       setAppliedFilter(null);
       setSort(null);
-      setOffset(0);
-      setPreview(null);
+      setMatchedCount(null);
     } catch (err) {
       setActionError(errorMessage(err));
     }
@@ -375,18 +326,20 @@ export function WorkspacePage() {
                 <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
                   <CardHeader title="Vista previa" />
                   <CardBody className="flex min-h-0 flex-1 flex-col">
-                    <PreviewTable
-                      preview={preview}
-                      loading={previewLoading}
+                    <SheetGrid
+                      key={`${detail.id}-${detail.active_sheet ?? ""}`}
+                      datasetId={detail.id}
+                      filter={appliedFilter}
+                      sort={sort}
+                      ready={datasetReady}
+                      onSort={handleSort}
+                      onTotalChange={setMatchedCount}
+                      onLoadingChange={setPreviewLoading}
                       loadingLabel={
                         appliedFilter
                           ? "Aplicando filtros…"
                           : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
                       }
-                      error={previewError}
-                      sort={sort}
-                      onSort={handleSort}
-                      onPageChange={setOffset}
                     />
                   </CardBody>
                 </Card>
@@ -394,7 +347,7 @@ export function WorkspacePage() {
                     <Card className="shrink-0">
                       <CardBody>
                         <DownloadBar
-                          totalMatched={preview?.total_matched ?? null}
+                          totalMatched={matchedCount}
                           downloading={downloading}
                           onDownload={handleDownload}
                         />

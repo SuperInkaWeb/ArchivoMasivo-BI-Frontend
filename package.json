@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.24.1",
+    "@tanstack/react-virtual": "^3.14.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
