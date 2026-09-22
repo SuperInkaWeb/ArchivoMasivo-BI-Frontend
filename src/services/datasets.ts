@@ -22,6 +22,9 @@ import type {
   PivotSaveRequest,
   PreviewRequest,
   PreviewResponse,
+  ReplaceDownloadRequest,
+  ReplaceRequest,
+  ReplaceSaveRequest,
   UploadTicket,
 } from "@/types";
 
@@ -127,4 +130,19 @@ export function saveComputed(datasetId: string, request: ComputeSaveRequest): Pr
 /** Descarga todas las filas con las columnas calculadas como archivo (CSV/XLSX/TXT). */
 export function downloadComputed(datasetId: string, request: ComputeDownloadRequest): Promise<DownloadedFile> {
   return postForFile(`/datasets/${datasetId}/compute/download`, request, `columnas.${request.format}`);
+}
+
+/** Aplica buscar-y-reemplazar y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
+export function replaceDataset(datasetId: string, request: ReplaceRequest): Promise<PreviewResponse> {
+  return postJson<PreviewResponse>(`/datasets/${datasetId}/replace`, request, { retry: true });
+}
+
+/** Guarda las correcciones como un dataset nuevo (se materializa en segundo plano). */
+export function saveReplace(datasetId: string, request: ReplaceSaveRequest): Promise<DatasetSummary> {
+  return postJson<DatasetSummary>(`/datasets/${datasetId}/replace/save`, request);
+}
+
+/** Descarga todas las filas ya corregidas como archivo (CSV/XLSX/TXT). */
+export function downloadReplace(datasetId: string, request: ReplaceDownloadRequest): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/replace/download`, request, `corregido.${request.format}`);
 }

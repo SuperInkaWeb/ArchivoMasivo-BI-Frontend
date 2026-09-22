@@ -8,6 +8,7 @@ import { FilterBuilder } from "@/components/FilterBuilder";
 import { PreviewTable } from "@/components/PreviewTable";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
+import { ReplaceView } from "@/components/ReplaceView";
 import { DownloadBar } from "@/components/DownloadBar";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
@@ -31,7 +32,7 @@ import type {
 } from "@/types";
 
 const PAGE_SIZE = 100;
-type RightMode = "filter" | "pivot" | "compute";
+type RightMode = "filter" | "pivot" | "compute" | "replace";
 type OriginTab = "uploaded" | "derived";
 
 export function WorkspacePage() {
@@ -297,6 +298,9 @@ export function WorkspacePage() {
                   <ModeButton active={rightMode === "compute"} onClick={() => setRightMode("compute")}>
                     Columnas calculadas
                   </ModeButton>
+                  <ModeButton active={rightMode === "replace"} onClick={() => setRightMode("replace")}>
+                    Buscar y reemplazar
+                  </ModeButton>
                 </div>
 
                 {rightMode === "pivot" ? (
@@ -317,6 +321,16 @@ export function WorkspacePage() {
                     />
                     <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
                       <ComputeView dataset={detail} onSaved={handleDerivedSaved} />
+                    </CardBody>
+                  </Card>
+                ) : rightMode === "replace" ? (
+                  <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
+                    <CardHeader
+                      title="Buscar y reemplazar"
+                      description="Corrige valores por columna con reglas y guarda el archivo corregido."
+                    />
+                    <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
+                      <ReplaceView dataset={detail} onSaved={handleDerivedSaved} />
                     </CardBody>
                   </Card>
                 ) : (

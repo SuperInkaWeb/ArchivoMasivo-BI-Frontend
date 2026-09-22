@@ -1,8 +1,8 @@
 /** Contratos compartidos con el backend (deben reflejar los schemas de FastAPI). */
 
 export type IngestStatus = "pending" | "processing" | "ready" | "failed";
-/** Cómo se creó el dataset: subido, o derivado (pivote / columnas calculadas). */
-export type DatasetOrigin = "uploaded" | "pivot" | "computed";
+/** Cómo se creó el dataset: subido, o derivado (pivote / columnas / correcciones). */
+export type DatasetOrigin = "uploaded" | "pivot" | "computed" | "replaced";
 
 export interface ColumnInfo {
   name: string;
@@ -203,6 +203,38 @@ export interface ComputeSaveRequest extends ComputeRequest {
 export interface ComputeDownloadRequest {
   filter: FilterGroup | null;
   columns: ComputedColumn[];
+  format: DownloadFormat;
+  delimiter?: Delimiter; // solo se envía cuando format === "txt"
+}
+
+// --- Buscar y reemplazar por columna ---
+export type MatchMode = "exact" | "contains";
+
+/** Una corrección: en `column`, cambiar `search` por `replace`. */
+export interface ReplacementRule {
+  column: string;
+  mode: MatchMode;
+  search: string;
+  replace: string;
+  case_sensitive?: boolean; // solo aplica al modo "exact"
+}
+
+export interface ReplaceRequest {
+  filter: FilterGroup | null;
+  replacements: ReplacementRule[];
+  limit: number;
+  offset: number;
+}
+
+export interface ReplaceSaveRequest {
+  filter: FilterGroup | null;
+  replacements: ReplacementRule[];
+  name: string;
+}
+
+export interface ReplaceDownloadRequest {
+  filter: FilterGroup | null;
+  replacements: ReplacementRule[];
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }
