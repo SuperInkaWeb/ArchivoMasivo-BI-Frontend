@@ -13,6 +13,9 @@ import type {
   DatasetSummary,
   DistinctValues,
   DownloadRequest,
+  PivotRequest,
+  PivotResponse,
+  PivotSaveRequest,
   PreviewRequest,
   PreviewResponse,
   UploadTicket,
@@ -90,4 +93,14 @@ export function columnValues(
 
 export function changeSheet(datasetId: string, sheet: string): Promise<DatasetDetail> {
   return postJson<DatasetDetail>(`/datasets/${datasetId}/sheet`, { sheet });
+}
+
+/** Ejecuta un pivote y devuelve el reporte (solo lectura: se reintenta ante fallo de red). */
+export function pivotDataset(datasetId: string, request: PivotRequest): Promise<PivotResponse> {
+  return postJson<PivotResponse>(`/datasets/${datasetId}/pivot`, request, { retry: true });
+}
+
+/** Guarda el pivote como un dataset nuevo (se materializa en segundo plano). */
+export function savePivot(datasetId: string, request: PivotSaveRequest): Promise<DatasetSummary> {
+  return postJson<DatasetSummary>(`/datasets/${datasetId}/pivot/save`, request);
 }

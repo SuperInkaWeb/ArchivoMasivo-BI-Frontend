@@ -1,6 +1,8 @@
 /** Contratos compartidos con el backend (deben reflejar los schemas de FastAPI). */
 
 export type IngestStatus = "pending" | "processing" | "ready" | "failed";
+/** Cómo se creó el dataset: subido por el usuario o generado por un pivote. */
+export type DatasetOrigin = "uploaded" | "pivot";
 
 export interface ColumnInfo {
   name: string;
@@ -11,6 +13,7 @@ export interface DatasetSummary {
   id: string;
   original_filename: string;
   status: IngestStatus;
+  origin: DatasetOrigin;
   row_count: number | null;
   size_bytes: number;
   created_at: string;
@@ -104,4 +107,34 @@ export interface PreviewResponse {
 export interface DownloadRequest extends FilterRequest {
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
+}
+
+// --- Tablas dinámicas (pivote) ---
+export type Aggregation = "count" | "count_distinct" | "sum" | "avg" | "min" | "max";
+
+/** Una métrica del reporte: agregación sobre una columna (column ausente = conteo de filas). */
+export interface Measure {
+  column?: string | null;
+  aggregation: Aggregation;
+}
+
+export interface PivotRequest {
+  filter: FilterGroup | null;
+  group_by: string[];
+  measures: Measure[];
+  pivot_column?: string | null; // cross-tab opcional
+  limit: number;
+  offset: number;
+}
+
+export interface PivotResponse {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  total_matched: number;
+  limit: number;
+  offset: number;
+}
+
+export interface PivotSaveRequest extends PivotRequest {
+  name: string;
 }
