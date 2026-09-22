@@ -139,6 +139,16 @@ export interface PivotSaveRequest extends PivotRequest {
   name: string;
 }
 
+/** Descarga directa del reporte pivote completo (sin paginación). */
+export interface PivotDownloadRequest {
+  filter: FilterGroup | null;
+  group_by: string[];
+  measures: Measure[];
+  pivot_column?: string | null;
+  format: DownloadFormat;
+  delimiter?: Delimiter; // solo se envía cuando format === "txt"
+}
+
 // --- Columnas calculadas (árbol de expresiones) ---
 export type FunctionName =
   | "concat"
@@ -187,4 +197,12 @@ export interface ComputeRequest {
 
 export interface ComputeSaveRequest extends ComputeRequest {
   name: string;
+}
+
+/** Descarga directa de todas las filas con las columnas calculadas. */
+export interface ComputeDownloadRequest {
+  filter: FilterGroup | null;
+  columns: ComputedColumn[];
+  format: DownloadFormat;
+  delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }

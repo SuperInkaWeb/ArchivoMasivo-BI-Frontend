@@ -9,12 +9,14 @@ import {
   type DownloadedFile,
 } from "@/lib/api";
 import type {
+  ComputeDownloadRequest,
   ComputeRequest,
   ComputeSaveRequest,
   DatasetDetail,
   DatasetSummary,
   DistinctValues,
   DownloadRequest,
+  PivotDownloadRequest,
   PivotRequest,
   PivotResponse,
   PivotSaveRequest,
@@ -107,6 +109,11 @@ export function savePivot(datasetId: string, request: PivotSaveRequest): Promise
   return postJson<DatasetSummary>(`/datasets/${datasetId}/pivot/save`, request);
 }
 
+/** Descarga el reporte pivote completo como archivo (CSV/XLSX/TXT). */
+export function downloadPivot(datasetId: string, request: PivotDownloadRequest): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/pivot/download`, request, `reporte.${request.format}`);
+}
+
 /** Aplica columnas calculadas y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
 export function computeDataset(datasetId: string, request: ComputeRequest): Promise<PreviewResponse> {
   return postJson<PreviewResponse>(`/datasets/${datasetId}/compute`, request, { retry: true });
@@ -115,4 +122,9 @@ export function computeDataset(datasetId: string, request: ComputeRequest): Prom
 /** Guarda las columnas calculadas como un dataset nuevo (se materializa en segundo plano). */
 export function saveComputed(datasetId: string, request: ComputeSaveRequest): Promise<DatasetSummary> {
   return postJson<DatasetSummary>(`/datasets/${datasetId}/compute/save`, request);
+}
+
+/** Descarga todas las filas con las columnas calculadas como archivo (CSV/XLSX/TXT). */
+export function downloadComputed(datasetId: string, request: ComputeDownloadRequest): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/compute/download`, request, `columnas.${request.format}`);
 }

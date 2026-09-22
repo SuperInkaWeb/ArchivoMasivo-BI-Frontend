@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/DataTable";
+import { FormatPicker } from "@/components/FormatPicker";
 import { Input, Label, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
-import { computeDataset, saveComputed } from "@/services/datasets";
-import { errorMessage } from "@/lib/utils";
+import { computeDataset, downloadComputed, saveComputed } from "@/services/datasets";
+import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
 import type {
   ComputedColumn,
   DatasetDetail,
+  Delimiter,
+  DownloadFormat,
   Expression,
   FunctionName,
   PreviewResponse,
@@ -80,6 +83,7 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
   const [result, setResult] = useState<PreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateDraft(index: number, patch: Partial<ColumnDraft>) {
@@ -172,6 +176,26 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
       setError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+    const columns = validateAndBuild();
+    if (!columns) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const file = await downloadComputed(dataset.id, {
+        filter: null,
+        columns,
+        format,
+        ...(format === "txt" && delimiter ? { delimiter } : {}),
+      });
+      saveBlob(file.blob, file.filename);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -304,8 +328,16 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
       {error ? <ErrorBanner message={error} /> : null}
 
       {result ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+          <p className="text-xs text-slate-500">
+            Descarga todas las filas ({formatNumber(result.total_matched)}) con las columnas nuevas.
+          </p>
+          <FormatPicker label="Descargar columnas" downloading={downloading} onDownload={handleDownload} />
+        </div>
+      ) : null}
+      {result ? (
         <Label className="!text-slate-400">
-          Vista previa (columnas originales + nuevas). Guarda para poder filtrarlas y descargarlas.
+          Vista previa (columnas originales + nuevas). Guárdala como archivo para reutilizarla y filtrarla.
         </Label>
       ) : null}
       {result ? (

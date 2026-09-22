@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/DataTable";
+import { FormatPicker } from "@/components/FormatPicker";
 import { Label, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
-import { pivotDataset, savePivot } from "@/services/datasets";
-import { errorMessage } from "@/lib/utils";
-import type { Aggregation, DatasetDetail, Measure, PivotResponse } from "@/types";
+import { downloadPivot, pivotDataset, savePivot } from "@/services/datasets";
+import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
+import type { Aggregation, DatasetDetail, Delimiter, DownloadFormat, Measure, PivotResponse } from "@/types";
 
 const PAGE_SIZE = 100;
 
@@ -33,6 +34,7 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const availableForGroup = columnNames.filter((name) => !groupBy.includes(name));
   const availableForPivot = columnNames.filter((name) => !groupBy.includes(name));
@@ -91,6 +93,31 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
       setError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+    const invalid = validate();
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setDownloading(true);
+    setError(null);
+    try {
+      const file = await downloadPivot(dataset.id, {
+        filter: null,
+        group_by: groupBy,
+        measures,
+        pivot_column: pivotColumn || null,
+        format,
+        ...(format === "txt" && delimiter ? { delimiter } : {}),
+      });
+      saveBlob(file.blob, file.filename);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -226,6 +253,15 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
+
+      {result ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+          <p className="text-xs text-slate-500">
+            Descarga el reporte completo ({formatNumber(result.total_matched)} filas agrupadas).
+          </p>
+          <FormatPicker label="Descargar reporte" downloading={downloading} onDownload={handleDownload} />
+        </div>
+      ) : null}
 
       {result ? (
         <DataTable
