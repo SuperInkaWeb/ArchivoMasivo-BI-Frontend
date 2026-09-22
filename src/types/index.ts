@@ -54,7 +54,9 @@ export type Operator =
 
 export type Combinator = "and" | "or";
 export type SortDirection = "asc" | "desc";
-export type DownloadFormat = "csv" | "xlsx";
+export type DownloadFormat = "csv" | "xlsx" | "txt";
+/** Separador para la descarga en TXT (solo aplica a ese formato). */
+export type Delimiter = "tab" | "pipe" | "semicolon" | "comma";
 
 export type FilterValue = string | number | boolean | Array<string | number> | null;
 
@@ -101,4 +103,5 @@ export interface PreviewResponse {
 
 export interface DownloadRequest extends FilterRequest {
   format: DownloadFormat;
+  delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }

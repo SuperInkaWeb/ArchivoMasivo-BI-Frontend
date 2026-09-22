@@ -21,6 +21,7 @@ import {
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
 import type {
   DatasetSummary,
+  Delimiter,
   DownloadFormat,
   FilterGroup,
   PreviewResponse,
@@ -155,7 +156,7 @@ export function WorkspacePage() {
     }
   }
 
-  async function handleDownload(format: DownloadFormat) {
+  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
     if (!selectedId) return;
     setDownloading(true);
     setActionError(null);
@@ -165,6 +166,7 @@ export function WorkspacePage() {
         select: [],
         sort: sort ? [sort] : [],
         format,
+        ...(format === "txt" && delimiter ? { delimiter } : {}),
       });
       saveBlob(file.blob, file.filename);
     } catch (err) {
