@@ -9,6 +9,7 @@ import { SheetGrid } from "@/components/SheetGrid";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
+import { SheetTabs } from "@/components/SheetTabs";
 import { DownloadBar } from "@/components/DownloadBar";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
@@ -360,6 +361,16 @@ export function WorkspacePage() {
           </div>
         </div>
       </div>
+
+      {datasets.length > 0 ? (
+        <SheetTabs
+          datasets={datasets}
+          selectedId={selectedId}
+          uploading={uploading}
+          onSelect={handleSelect}
+          onUpload={handleUpload}
+        />
+      ) : null}
     </div>
   );
 }
