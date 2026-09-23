@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { FormulaBar } from "@/components/FormulaBar";
 import { StatusBar, type SelectionStats } from "@/components/StatusBar";
+import { cleanNumber } from "@/lib/utils";
 import { useSheetData } from "@/hooks/useSheetData";
 import type { FilterGroup, SortSpec } from "@/types";
 
@@ -31,6 +32,7 @@ function columnLetter(index: number): string {
 function renderCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "verdadero" : "falso";
+  if (typeof value === "number") return cleanNumber(value);
   return String(value);
 }
 

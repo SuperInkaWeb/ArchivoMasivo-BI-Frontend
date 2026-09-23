@@ -23,6 +23,15 @@ export function formatNumber(value: number): string {
   return value.toLocaleString("es-PE");
 }
 
+/**
+ * Limpia el ruido de coma flotante al mostrar un número (683696.2599999998 -> 683696.26)
+ * sin alterar enteros ni decimales legítimos. No cambia el dato, solo su presentación.
+ */
+export function cleanNumber(value: number): string {
+  if (!Number.isFinite(value) || Number.isInteger(value)) return String(value);
+  return String(Number(value.toPrecision(12)));
+}
+
 /** Extrae un mensaje legible de un error desconocido. */
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

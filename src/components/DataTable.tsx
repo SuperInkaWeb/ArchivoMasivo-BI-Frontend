@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/utils";
+import { cleanNumber, formatNumber } from "@/lib/utils";
 
 interface DataTableProps {
   columns: string[];
@@ -14,6 +14,7 @@ interface DataTableProps {
 
 function renderCell(value: unknown): string {
   if (value === null || value === undefined) return "—";
+  if (typeof value === "number") return cleanNumber(value);
   return String(value);
 }
 
