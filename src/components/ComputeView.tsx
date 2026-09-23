@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/DataTable";
 import { FormatPicker } from "@/components/FormatPicker";
-import { Input, Label, Select } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { computeDataset, downloadComputed, saveComputed } from "@/services/datasets";
-import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
+import { errorMessage, saveBlob } from "@/lib/utils";
 import type {
   ComputedColumn,
   DatasetDetail,
@@ -118,6 +117,8 @@ interface ColumnDraft {
 
 interface ComputeViewProps {
   dataset: DatasetDetail;
+  busy: boolean;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
   onSaved: (name: string) => void;
 }
 
@@ -141,11 +142,9 @@ function coerceLiteral(raw: string): string | number {
   return !Number.isNaN(asNumber) && String(asNumber) === trimmed ? asNumber : raw;
 }
 
-export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
+export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewProps) {
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<ColumnDraft[]>([newColumnDraft()]);
-  const [result, setResult] = useState<PreviewResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,19 +230,11 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
     return null;
   }
 
-  async function run(offset: number) {
+  function generate() {
     const columns = validateAndBuild();
     if (!columns) return;
-    setLoading(true);
     setError(null);
-    try {
-      const response = await computeDataset(dataset.id, { filter: null, columns, limit: PAGE_SIZE, offset });
-      setResult(response);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
+    onPreview((offset) => computeDataset(dataset.id, { filter: null, columns, limit: PAGE_SIZE, offset }));
   }
 
   async function handleSave() {
@@ -460,45 +451,23 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button onClick={() => run(0)} disabled={loading}>
-          {loading ? <Spinner className="border-white/40 border-t-white" /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={generate} disabled={busy}>
+          {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Ver resultado
         </Button>
-        {result ? (
-          <Button variant="secondary" onClick={handleSave} disabled={saving}>
-            {saving ? <Spinner /> : null}
-            Guardar como archivo
-          </Button>
-        ) : null}
+        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+          {saving ? <Spinner /> : null}
+          Guardar como archivo
+        </Button>
+      </div>
+
+      <div className="border-t border-slate-100 pt-3">
+        <p className="mb-2 text-xs text-slate-500">Descarga todas las filas con las columnas nuevas.</p>
+        <FormatPicker label="Descargar columnas" downloading={downloading} onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
-
-      {result ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-          <p className="text-xs text-slate-500">
-            Descarga todas las filas ({formatNumber(result.total_matched)}) con las columnas nuevas.
-          </p>
-          <FormatPicker label="Descargar columnas" downloading={downloading} onDownload={handleDownload} />
-        </div>
-      ) : null}
-      {result ? (
-        <Label className="!text-slate-400">
-          Vista previa (columnas originales + nuevas). Guárdala como archivo para reutilizarla y filtrarla.
-        </Label>
-      ) : null}
-      {result ? (
-        <DataTable
-          columns={result.columns}
-          rows={result.rows}
-          total={result.total_matched}
-          limit={result.limit}
-          offset={result.offset}
-          loading={loading}
-          onPageChange={(next) => run(next)}
-        />
-      ) : null}
     </div>
   );
 }

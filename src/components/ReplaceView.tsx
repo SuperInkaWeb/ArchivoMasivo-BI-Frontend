@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/DataTable";
 import { FormatPicker } from "@/components/FormatPicker";
-import { Input, Label, Select } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadReplace, replaceDataset, saveReplace } from "@/services/datasets";
-import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
+import { errorMessage, saveBlob } from "@/lib/utils";
 import type {
   DatasetDetail,
   Delimiter,
@@ -32,6 +31,8 @@ interface RuleDraft {
 
 interface ReplaceViewProps {
   dataset: DatasetDetail;
+  busy: boolean;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
   onSaved: (name: string) => void;
 }
 
@@ -39,11 +40,9 @@ function newRule(firstColumn: string): RuleDraft {
   return { column: firstColumn, mode: "exact", search: "", replace: "", caseSensitive: true };
 }
 
-export function ReplaceView({ dataset, onSaved }: ReplaceViewProps) {
+export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewProps) {
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<RuleDraft[]>([newRule(columnNames[0] ?? "")]);
-  const [result, setResult] = useState<PreviewResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,19 +72,11 @@ export function ReplaceView({ dataset, onSaved }: ReplaceViewProps) {
     return null;
   }
 
-  async function run(offset: number) {
+  function generate() {
     const replacements = buildRules();
     if (!replacements) return;
-    setLoading(true);
     setError(null);
-    try {
-      const response = await replaceDataset(dataset.id, { filter: null, replacements, limit: PAGE_SIZE, offset });
-      setResult(response);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
+    onPreview((offset) => replaceDataset(dataset.id, { filter: null, replacements, limit: PAGE_SIZE, offset }));
   }
 
   async function handleSave() {
@@ -207,45 +198,23 @@ export function ReplaceView({ dataset, onSaved }: ReplaceViewProps) {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button onClick={() => run(0)} disabled={loading}>
-          {loading ? <Spinner className="border-white/40 border-t-white" /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={generate} disabled={busy}>
+          {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Ver resultado
         </Button>
-        {result ? (
-          <Button variant="secondary" onClick={handleSave} disabled={saving}>
-            {saving ? <Spinner /> : null}
-            Guardar como archivo
-          </Button>
-        ) : null}
+        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+          {saving ? <Spinner /> : null}
+          Guardar como archivo
+        </Button>
+      </div>
+
+      <div className="border-t border-slate-100 pt-3">
+        <p className="mb-2 text-xs text-slate-500">Descarga todas las filas ya corregidas en tu formato.</p>
+        <FormatPicker label="Descargar corregido" downloading={downloading} onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
-
-      {result ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-          <p className="text-xs text-slate-500">
-            Descarga todas las filas ({formatNumber(result.total_matched)}) ya corregidas.
-          </p>
-          <FormatPicker label="Descargar corregido" downloading={downloading} onDownload={handleDownload} />
-        </div>
-      ) : null}
-      {result ? (
-        <Label className="!text-slate-400">
-          Vista previa con las correcciones aplicadas. Guárdala como archivo para reutilizarla y filtrarla.
-        </Label>
-      ) : null}
-      {result ? (
-        <DataTable
-          columns={result.columns}
-          rows={result.rows}
-          total={result.total_matched}
-          limit={result.limit}
-          offset={result.offset}
-          loading={loading}
-          onPageChange={(next) => run(next)}
-        />
-      ) : null}
     </div>
   );
 }

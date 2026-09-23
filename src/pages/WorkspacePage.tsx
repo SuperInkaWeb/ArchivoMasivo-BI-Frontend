@@ -6,6 +6,7 @@ import { UploadDropzone } from "@/components/UploadDropzone";
 import { DatasetList } from "@/components/DatasetList";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { SheetGrid } from "@/components/SheetGrid";
+import { DataTable } from "@/components/DataTable";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
@@ -18,7 +19,14 @@ import { useDatasets } from "@/hooks/useDatasets";
 import { useDatasetDetail } from "@/hooks/useDatasetDetail";
 import { changeSheet, deleteDataset, downloadDataset, uploadFile } from "@/services/datasets";
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
-import type { DatasetSummary, Delimiter, DownloadFormat, FilterGroup, SortSpec } from "@/types";
+import type {
+  DatasetSummary,
+  Delimiter,
+  DownloadFormat,
+  FilterGroup,
+  PreviewResponse,
+  SortSpec,
+} from "@/types";
 
 type OriginTab = "uploaded" | "derived";
 
@@ -39,6 +47,12 @@ export function WorkspacePage() {
   const [sort, setSort] = useState<SortSpec | null>(null);
   const [matchedCount, setMatchedCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Resultado de una herramienta (pivote/columnas/reemplazar) mostrado al centro.
+  const [toolResult, setToolResult] = useState<PreviewResponse | null>(null);
+  const [toolLoading, setToolLoading] = useState(false);
+  const [toolFetcher, setToolFetcher] = useState<((offset: number) => Promise<PreviewResponse>) | null>(null);
+  const [toolCountLabel, setToolCountLabel] = useState("filas");
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -76,11 +90,35 @@ export function WorkspacePage() {
     setActionError(null);
     setNotice(null);
     setActiveTool(null); // abre solo con la tabla al centro
+    clearToolResult();
     setSidebarOpen(false); // al abrir un archivo, colapsa la lista para ver los datos en grande
   }
 
+  function clearToolResult() {
+    setToolResult(null);
+    setToolLoading(false);
+    setToolFetcher(null);
+  }
+
   function toggleTool(tool: WorkspaceMode) {
+    clearToolResult(); // el resultado anterior no aplica a otra herramienta
     setActiveTool((current) => (current === tool ? null : tool));
+  }
+
+  function pageTool(fetcher: (offset: number) => Promise<PreviewResponse>, offset: number) {
+    setToolLoading(true);
+    setActionError(null);
+    fetcher(offset)
+      .then((response) => setToolResult(response))
+      .catch((err) => setActionError(errorMessage(err)))
+      .finally(() => setToolLoading(false));
+  }
+
+  // La herramienta arma el fetcher (con su config); aquí se ejecuta y se muestra al centro.
+  function runToolPreview(fetcher: (offset: number) => Promise<PreviewResponse>, countLabel = "filas") {
+    setToolFetcher(() => fetcher);
+    setToolCountLabel(countLabel);
+    pageTool(fetcher, 0);
   }
 
   async function handleDerivedSaved(name: string) {
@@ -144,6 +182,7 @@ export function WorkspacePage() {
       setAppliedFilter(null);
       setSort(null);
       setMatchedCount(null);
+      clearToolResult();
     } catch (err) {
       setActionError(errorMessage(err));
     }
@@ -278,36 +317,76 @@ export function WorkspacePage() {
                 <Ribbon mode={activeTool} onChange={toggleTool} />
 
                 <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
-                  <CardHeader
-                    title={detail.original_filename}
-                    description={`${detail.columns.length} columnas · ${
-                      detail.row_count != null ? formatNumber(detail.row_count) : "?"
-                    } filas${appliedFilter ? " · filtro activo" : ""}`}
-                  />
-                  <CardBody className="flex min-h-0 flex-1 flex-col">
-                    <SheetGrid
-                      key={`${detail.id}-${detail.active_sheet ?? ""}`}
-                      datasetId={detail.id}
-                      filter={appliedFilter}
-                      sort={sort}
-                      ready={datasetReady}
-                      onSort={handleSort}
-                      onTotalChange={setMatchedCount}
-                      onLoadingChange={setPreviewLoading}
-                      loadingLabel={
-                        appliedFilter
-                          ? "Aplicando filtros…"
-                          : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
-                      }
-                    />
-                  </CardBody>
-                  <div className="shrink-0 border-t border-slate-200 px-4 py-3">
-                    <DownloadBar
-                      totalMatched={matchedCount}
-                      downloading={downloading}
-                      onDownload={handleDownload}
-                    />
-                  </div>
+                  {toolResult || toolLoading ? (
+                    <>
+                      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                        <div>
+                          <h2 className="text-sm font-semibold text-slate-900">Vista previa del resultado</h2>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {activeTool ? TOOL_TITLES[activeTool].title : ""} · guarda o descarga desde el panel
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearToolResult}
+                          className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                        >
+                          Volver a los datos
+                        </button>
+                      </div>
+                      <CardBody className="flex min-h-0 flex-1 flex-col">
+                        {toolResult ? (
+                          <DataTable
+                            columns={toolResult.columns}
+                            rows={toolResult.rows}
+                            total={toolResult.total_matched}
+                            limit={toolResult.limit}
+                            offset={toolResult.offset}
+                            loading={toolLoading}
+                            countLabel={toolCountLabel}
+                            onPageChange={(offset) => toolFetcher && pageTool(toolFetcher, offset)}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 p-4 text-sm text-slate-500">
+                            <Spinner /> Generando…
+                          </div>
+                        )}
+                      </CardBody>
+                    </>
+                  ) : (
+                    <>
+                      <CardHeader
+                        title={detail.original_filename}
+                        description={`${detail.columns.length} columnas · ${
+                          detail.row_count != null ? formatNumber(detail.row_count) : "?"
+                        } filas${appliedFilter ? " · filtro activo" : ""}`}
+                      />
+                      <CardBody className="flex min-h-0 flex-1 flex-col">
+                        <SheetGrid
+                          key={`${detail.id}-${detail.active_sheet ?? ""}`}
+                          datasetId={detail.id}
+                          filter={appliedFilter}
+                          sort={sort}
+                          ready={datasetReady}
+                          onSort={handleSort}
+                          onTotalChange={setMatchedCount}
+                          onLoadingChange={setPreviewLoading}
+                          loadingLabel={
+                            appliedFilter
+                              ? "Aplicando filtros…"
+                              : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
+                          }
+                        />
+                      </CardBody>
+                      <div className="shrink-0 border-t border-slate-200 px-4 py-3">
+                        <DownloadBar
+                          totalMatched={matchedCount}
+                          downloading={downloading}
+                          onDownload={handleDownload}
+                        />
+                      </div>
+                    </>
+                  )}
                 </Card>
 
                 {activeTool ? (
@@ -346,11 +425,26 @@ export function WorkspacePage() {
                         />
                       </div>
                     ) : activeTool === "pivot" ? (
-                      <PivotView dataset={detail} onSaved={handleDerivedSaved} />
+                      <PivotView
+                        dataset={detail}
+                        busy={toolLoading}
+                        onPreview={runToolPreview}
+                        onSaved={handleDerivedSaved}
+                      />
                     ) : activeTool === "compute" ? (
-                      <ComputeView dataset={detail} onSaved={handleDerivedSaved} />
+                      <ComputeView
+                        dataset={detail}
+                        busy={toolLoading}
+                        onPreview={runToolPreview}
+                        onSaved={handleDerivedSaved}
+                      />
                     ) : (
-                      <ReplaceView dataset={detail} onSaved={handleDerivedSaved} />
+                      <ReplaceView
+                        dataset={detail}
+                        busy={toolLoading}
+                        onPreview={runToolPreview}
+                        onSaved={handleDerivedSaved}
+                      />
                     )}
                   </Drawer>
                 ) : null}

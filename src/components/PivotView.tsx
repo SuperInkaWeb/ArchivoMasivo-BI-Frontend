@@ -1,28 +1,26 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/DataTable";
 import { FormatPicker } from "@/components/FormatPicker";
 import { PivotFieldConfig } from "@/components/PivotFieldConfig";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadPivot, pivotDataset, savePivot } from "@/services/datasets";
-import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
-import type { DatasetDetail, Delimiter, DownloadFormat, Measure, PivotResponse } from "@/types";
+import { errorMessage, saveBlob } from "@/lib/utils";
+import type { DatasetDetail, Delimiter, DownloadFormat, Measure, PreviewResponse } from "@/types";
 
 const PAGE_SIZE = 100;
 
 interface PivotViewProps {
   dataset: DatasetDetail;
+  busy: boolean;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
   onSaved: (name: string) => void;
 }
 
-export function PivotView({ dataset, onSaved }: PivotViewProps) {
+export function PivotView({ dataset, busy, onPreview, onSaved }: PivotViewProps) {
   const columnNames = dataset.columns.map((column) => column.name);
   const [groupBy, setGroupBy] = useState<string[]>([]);
   const [measures, setMeasures] = useState<Measure[]>([{ aggregation: "count" }]);
   const [pivotColumn, setPivotColumn] = useState<string>("");
-
-  const [result, setResult] = useState<PivotResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -35,33 +33,25 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
     return null;
   }
 
-  function buildRequest(nextOffset: number) {
+  function buildRequest(offset: number) {
     return {
       filter: null,
       group_by: groupBy,
       measures,
       pivot_column: pivotColumn || null,
       limit: PAGE_SIZE,
-      offset: nextOffset,
+      offset,
     };
   }
 
-  async function run(nextOffset: number) {
+  function generate() {
     const invalid = validate();
     if (invalid) {
       setError(invalid);
       return;
     }
-    setLoading(true);
     setError(null);
-    try {
-      const response = await pivotDataset(dataset.id, buildRequest(nextOffset));
-      setResult(response);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
+    onPreview((offset) => pivotDataset(dataset.id, buildRequest(offset)), "filas en el reporte");
   }
 
   async function handleSave() {
@@ -121,42 +111,23 @@ export function PivotView({ dataset, onSaved }: PivotViewProps) {
         setPivotColumn={setPivotColumn}
       />
 
-      <div className="flex items-center gap-2">
-        <Button onClick={() => run(0)} disabled={loading}>
-          {loading ? <Spinner className="border-white/40 border-t-white" /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={generate} disabled={busy}>
+          {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Generar reporte
         </Button>
-        {result ? (
-          <Button variant="secondary" onClick={handleSave} disabled={saving}>
-            {saving ? <Spinner /> : null}
-            Guardar como archivo
-          </Button>
-        ) : null}
+        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+          {saving ? <Spinner /> : null}
+          Guardar como archivo
+        </Button>
+      </div>
+
+      <div className="border-t border-slate-100 pt-3">
+        <p className="mb-2 text-xs text-slate-500">Descarga el reporte completo en el formato que elijas.</p>
+        <FormatPicker label="Descargar reporte" downloading={downloading} onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
-
-      {result ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-          <p className="text-xs text-slate-500">
-            Descarga el reporte completo ({formatNumber(result.total_matched)} filas agrupadas).
-          </p>
-          <FormatPicker label="Descargar reporte" downloading={downloading} onDownload={handleDownload} />
-        </div>
-      ) : null}
-
-      {result ? (
-        <DataTable
-          columns={result.columns}
-          rows={result.rows}
-          total={result.total_matched}
-          limit={result.limit}
-          offset={result.offset}
-          loading={loading}
-          onPageChange={(next) => run(next)}
-          countLabel="filas en el reporte"
-        />
-      ) : null}
     </div>
   );
 }
