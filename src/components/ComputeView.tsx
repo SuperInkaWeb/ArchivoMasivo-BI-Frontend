@@ -45,7 +45,22 @@ const FUNCTIONS: FunctionMeta[] = [
   { value: "month", label: "Mes de una fecha", min: 1, max: 1, argLabels: ["Fecha"] },
   { value: "day", label: "Día de una fecha", min: 1, max: 1, argLabels: ["Fecha"] },
   { value: "datediff_days", label: "Días entre dos fechas", min: 2, max: 2, argLabels: ["Fecha A", "Fecha B"] },
+  { value: "if", label: "Condición SI (si… entonces… si no…)", min: 4, max: 4, argLabels: ["Izquierda", "Derecha", "Entonces", "Si no"] },
 ];
+
+// Comparadores disponibles para la condición del SI (subconjunto de FunctionName).
+const COMPARATORS: Array<{ value: FunctionName; label: string }> = [
+  { value: "eq", label: "= igual a" },
+  { value: "ne", label: "≠ distinto de" },
+  { value: "gt", label: "> mayor que" },
+  { value: "gte", label: "≥ mayor o igual que" },
+  { value: "lt", label: "< menor que" },
+  { value: "lte", label: "≤ menor o igual que" },
+];
+
+const COMPARATOR_SYMBOL: Partial<Record<FunctionName, string>> = {
+  eq: "=", ne: "≠", gt: ">", gte: "≥", lt: "<", lte: "≤",
+};
 
 const FUNCTION_META = new Map(FUNCTIONS.map((f) => [f.value, f]));
 
@@ -65,7 +80,8 @@ const FN_TOKENS: Partial<Record<FunctionName, string>> = {
 };
 
 /** Texto legible de un argumento para el preview (columna, número o "texto"). */
-function argText(arg: ArgDraft): string {
+function argText(arg: ArgDraft | undefined): string {
+  if (!arg) return "?";
   if (arg.source === "column") return arg.column || "?";
   if (arg.literal.trim() === "") return "?";
   const value = coerceLiteral(arg.literal);
@@ -75,6 +91,11 @@ function argText(arg: ArgDraft): string {
 /** Fórmula legible de una columna calculada, p. ej. `Total = column03 × 1.18`. */
 function previewFormula(draft: ColumnDraft): string {
   const name = draft.name.trim() || "(sin nombre)";
+  if (draft.fn === "if") {
+    const symbol = COMPARATOR_SYMBOL[draft.comparator] ?? "?";
+    const [left, right, thenArg, elseArg] = draft.args;
+    return `${name} = SI(${argText(left)} ${symbol} ${argText(right)}, ${argText(thenArg)}, ${argText(elseArg)})`;
+  }
   const parts = draft.args.map(argText);
   const infix = INFIX_TOKENS[draft.fn];
   if (infix && parts.length >= 2) return `${name} = ${parts.join(` ${infix} `)}`;
@@ -92,6 +113,7 @@ interface ColumnDraft {
   name: string;
   fn: FunctionName;
   args: ArgDraft[];
+  comparator: FunctionName; // solo se usa cuando fn === "if"
 }
 
 interface ComputeViewProps {
@@ -104,7 +126,7 @@ function newArg(): ArgDraft {
 }
 
 function newColumnDraft(): ColumnDraft {
-  return { name: "", fn: "concat", args: [newArg(), newArg()] };
+  return { name: "", fn: "concat", args: [newArg(), newArg()], comparator: "gt" };
 }
 
 /**
@@ -165,19 +187,39 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
       if (names.has(name)) return fail(`Nombre de columna repetido: "${name}".`);
       names.add(name);
 
+      const toExpr = (arg: ArgDraft | undefined): Expression | null => {
+        if (!arg) return fail(`Falta un valor en "${name}".`);
+        if (arg.source === "column") {
+          if (!arg.column) return fail(`Elige la columna en "${name}".`);
+          return { kind: "column", name: arg.column };
+        }
+        if (arg.literal.trim() === "") return fail(`Escribe el valor en "${name}".`);
+        return { kind: "literal", value: coerceLiteral(arg.literal) };
+      };
+
+      if (draft.fn === "if") {
+        const left = toExpr(draft.args[0]);
+        const right = toExpr(draft.args[1]);
+        const thenExpr = toExpr(draft.args[2]);
+        const elseExpr = toExpr(draft.args[3]);
+        if (!left || !right || !thenExpr || !elseExpr) return null;
+        const condition: Expression = { kind: "function", fn: draft.comparator, args: [left, right] };
+        built.push({
+          name,
+          expression: { kind: "function", fn: "if", args: [condition, thenExpr, elseExpr] },
+        });
+        continue;
+      }
+
       const meta = FUNCTION_META.get(draft.fn)!;
       if (draft.args.length < meta.min || (meta.max !== null && draft.args.length > meta.max)) {
         return fail(`La función "${meta.label}" no tiene el número de argumentos correcto.`);
       }
       const args: Expression[] = [];
       for (const arg of draft.args) {
-        if (arg.source === "column") {
-          if (!arg.column) return fail(`Elige la columna en "${name}".`);
-          args.push({ kind: "column", name: arg.column });
-        } else {
-          if (arg.literal.trim() === "") return fail(`Escribe el valor en "${name}".`);
-          args.push({ kind: "literal", value: coerceLiteral(arg.literal) });
-        }
+        const expr = toExpr(arg);
+        if (!expr) return null;
+        args.push(expr);
       }
       built.push({ name, expression: { kind: "function", fn: draft.fn, args } });
     }
@@ -247,6 +289,47 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
         {drafts.map((draft, index) => {
           const meta = FUNCTION_META.get(draft.fn)!;
           const canAddArg = meta.max === null || draft.args.length < meta.max;
+          const isIf = draft.fn === "if";
+          // Controles de un argumento (origen columna/valor + su editor), reutilizados por ambos editores.
+          const argFields = (argIndex: number) => {
+            const arg = draft.args[argIndex];
+            if (!arg) return null;
+            return (
+              <>
+                <Select
+                  className="w-32"
+                  value={arg.source}
+                  onChange={(event) =>
+                    updateArg(index, argIndex, { source: event.target.value as ArgDraft["source"] })
+                  }
+                >
+                  <option value="column">Columna</option>
+                  <option value="literal">Valor fijo</option>
+                </Select>
+                {arg.source === "column" ? (
+                  <Select
+                    className="flex-1"
+                    value={arg.column}
+                    onChange={(event) => updateArg(index, argIndex, { column: event.target.value })}
+                  >
+                    <option value="">Elige columna…</option>
+                    {columnNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Input
+                    className="flex-1"
+                    placeholder="Texto o número"
+                    value={arg.literal}
+                    onChange={(event) => updateArg(index, argIndex, { literal: event.target.value })}
+                  />
+                )}
+              </>
+            );
+          };
           return (
             <div key={index} className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-3">
               <div className="flex flex-wrap items-end gap-3">
@@ -285,76 +368,81 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                 ) : null}
               </div>
 
-              <div className="space-y-2">
-                {draft.args.map((arg, argIndex) => (
-                  <div key={argIndex} className="flex items-center gap-2">
-                    <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
-                      {argLabel(meta, argIndex)}
-                    </span>
-                    <Select
-                      className="w-32"
-                      value={arg.source}
-                      onChange={(event) =>
-                        updateArg(index, argIndex, { source: event.target.value as ArgDraft["source"] })
-                      }
-                    >
-                      <option value="column">Columna</option>
-                      <option value="literal">Valor fijo</option>
-                    </Select>
-                    {arg.source === "column" ? (
+              {isIf ? (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-slate-500">Si se cumple la condición…</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {argFields(0)}
                       <Select
-                        className="flex-1"
-                        value={arg.column}
-                        onChange={(event) => updateArg(index, argIndex, { column: event.target.value })}
+                        className="w-48"
+                        value={draft.comparator}
+                        onChange={(event) =>
+                          updateDraft(index, { comparator: event.target.value as FunctionName })
+                        }
                       >
-                        <option value="">Elige columna…</option>
-                        {columnNames.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
+                        {COMPARATORS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
                           </option>
                         ))}
                       </Select>
-                    ) : (
-                      <Input
-                        className="flex-1"
-                        placeholder="Texto o número"
-                        value={arg.literal}
-                        onChange={(event) => updateArg(index, argIndex, { literal: event.target.value })}
-                      />
-                    )}
-                    {draft.args.length > meta.min ? (
-                      <button
-                        type="button"
-                        className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-red-50 hover:text-red-600"
-                        onClick={() =>
-                          setDrafts((current) =>
-                            current.map((d, i) =>
-                              i === index ? { ...d, args: d.args.filter((_, j) => j !== argIndex) } : d,
-                            ),
-                          )
-                        }
-                        aria-label="Quitar argumento"
-                      >
-                        ×
-                      </button>
-                    ) : null}
+                      {argFields(1)}
+                    </div>
                   </div>
-                ))}
-                {canAddArg ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setDrafts((current) =>
-                        current.map((d, i) => (i === index ? { ...d, args: [...d.args, newArg()] } : d)),
-                      )
-                    }
-                  >
-                    + argumento
-                  </Button>
-                ) : null}
-                {meta.hint ? <p className="text-xs text-slate-400">{meta.hint}</p> : null}
-              </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium text-slate-500">Entonces (si se cumple)</span>
+                      <div className="flex items-center gap-2">{argFields(2)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium text-slate-500">Si no (si no se cumple)</span>
+                      <div className="flex items-center gap-2">{argFields(3)}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {draft.args.map((_, argIndex) => (
+                    <div key={argIndex} className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+                        {argLabel(meta, argIndex)}
+                      </span>
+                      {argFields(argIndex)}
+                      {draft.args.length > meta.min ? (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          onClick={() =>
+                            setDrafts((current) =>
+                              current.map((d, i) =>
+                                i === index ? { ...d, args: d.args.filter((_, j) => j !== argIndex) } : d,
+                              ),
+                            )
+                          }
+                          aria-label="Quitar argumento"
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                  {canAddArg ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setDrafts((current) =>
+                          current.map((d, i) => (i === index ? { ...d, args: [...d.args, newArg()] } : d)),
+                        )
+                      }
+                    >
+                      + argumento
+                    </Button>
+                  ) : null}
+                  {meta.hint ? <p className="text-xs text-slate-400">{meta.hint}</p> : null}
+                </div>
+              )}
 
               <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5">
                 <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
