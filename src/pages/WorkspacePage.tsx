@@ -9,7 +9,8 @@ import { SheetGrid } from "@/components/SheetGrid";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
-import { Ribbon } from "@/components/Ribbon";
+import { Ribbon, type WorkspaceMode } from "@/components/Ribbon";
+import { Drawer } from "@/components/Drawer";
 import { DownloadBar } from "@/components/DownloadBar";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
@@ -19,8 +20,14 @@ import { changeSheet, deleteDataset, downloadDataset, uploadFile } from "@/servi
 import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
 import type { DatasetSummary, Delimiter, DownloadFormat, FilterGroup, SortSpec } from "@/types";
 
-type RightMode = "filter" | "pivot" | "compute" | "replace";
 type OriginTab = "uploaded" | "derived";
+
+const TOOL_TITLES: Record<WorkspaceMode, { title: string; description: string }> = {
+  filter: { title: "Filtrar", description: "Incluye solo las filas que cumplan tus condiciones." },
+  pivot: { title: "Tabla dinámica", description: "Agrupa, calcula métricas y guarda el resumen como archivo." },
+  compute: { title: "Columnas calculadas", description: "Crea columnas nuevas (unir, cálculos, fechas, SI)." },
+  replace: { title: "Buscar y reemplazar", description: "Corrige valores por columna con reglas." },
+};
 
 export function WorkspacePage() {
   const { datasets, loading, error, refresh } = useDatasets();
@@ -39,11 +46,10 @@ export function WorkspacePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Pestaña de la lista (Originales / Reportes) y modo del panel derecho.
+  // Pestaña de la lista (Originales / Reportes).
   const [originTab, setOriginTab] = useState<OriginTab>("uploaded");
-  const [rightMode, setRightMode] = useState<RightMode>("filter");
-  // Panel de filtros plegable: cerrado por defecto para que la cuadrícula ocupe más.
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Herramienta abierta en el panel lateral; null = ninguna (solo la tabla al centro).
+  const [activeTool, setActiveTool] = useState<WorkspaceMode | null>(null);
   // Lista lateral colapsable: se pliega al abrir un archivo para dar todo el ancho.
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isDerived = (dataset: DatasetSummary) => dataset.origin !== "uploaded";
@@ -69,14 +75,19 @@ export function WorkspacePage() {
     setMatchedCount(null);
     setActionError(null);
     setNotice(null);
-    setRightMode("filter");
+    setActiveTool(null); // abre solo con la tabla al centro
     setSidebarOpen(false); // al abrir un archivo, colapsa la lista para ver los datos en grande
+  }
+
+  function toggleTool(tool: WorkspaceMode) {
+    setActiveTool((current) => (current === tool ? null : tool));
   }
 
   async function handleDerivedSaved(name: string) {
     await refresh();
-    setOriginTab("derived"); // muestra el archivo derivado recién creado
-    setNotice(`Guardando "${name}"… aparecerá en Reportes cuando esté listo.`);
+    setActiveTool(null); // cierra el panel para volver a la tabla
+    setOriginTab("derived"); // deja lista la pestaña de Reportes
+    setNotice(`Guardando "${name}"… aparecerá en Reportes (ábrelo con ☰) cuando esté listo.`);
   }
 
   const handleUpload = useCallback(
@@ -111,7 +122,7 @@ export function WorkspacePage() {
 
   function handleApply(filter: FilterGroup | null) {
     setAppliedFilter(filter);
-    setFiltersOpen(false); // al aplicar, contrae para ver el resultado en grande
+    setActiveTool(null); // al aplicar, cierra el panel para ver el resultado en grande
   }
 
   // Ciclo de orden al clicar una columna: asc -> desc -> sin orden.
@@ -263,121 +274,87 @@ export function WorkspacePage() {
                 </CardBody>
               </Card>
             ) : detail ? (
-              <>
-                <Ribbon mode={rightMode} onChange={setRightMode} />
+              <div className="relative flex min-h-0 flex-1 flex-col gap-3">
+                <Ribbon mode={activeTool} onChange={toggleTool} />
 
-                {rightMode === "pivot" ? (
-                  <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
-                    <CardHeader
-                      title="Tabla dinámica"
-                      description="Agrupa, calcula métricas y guarda el resumen como un archivo nuevo."
+                <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
+                  <CardHeader
+                    title={detail.original_filename}
+                    description={`${detail.columns.length} columnas · ${
+                      detail.row_count != null ? formatNumber(detail.row_count) : "?"
+                    } filas${appliedFilter ? " · filtro activo" : ""}`}
+                  />
+                  <CardBody className="flex min-h-0 flex-1 flex-col">
+                    <SheetGrid
+                      key={`${detail.id}-${detail.active_sheet ?? ""}`}
+                      datasetId={detail.id}
+                      filter={appliedFilter}
+                      sort={sort}
+                      ready={datasetReady}
+                      onSort={handleSort}
+                      onTotalChange={setMatchedCount}
+                      onLoadingChange={setPreviewLoading}
+                      loadingLabel={
+                        appliedFilter
+                          ? "Aplicando filtros…"
+                          : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
+                      }
                     />
-                    <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-                      <PivotView dataset={detail} onSaved={handleDerivedSaved} />
-                    </CardBody>
-                  </Card>
-                ) : rightMode === "compute" ? (
-                  <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
-                    <CardHeader
-                      title="Columnas calculadas"
-                      description="Crea columnas nuevas (unir texto, cálculos, fechas…) y guárdalas como un archivo nuevo."
+                  </CardBody>
+                  <div className="shrink-0 border-t border-slate-200 px-4 py-3">
+                    <DownloadBar
+                      totalMatched={matchedCount}
+                      downloading={downloading}
+                      onDownload={handleDownload}
                     />
-                    <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-                      <ComputeView dataset={detail} onSaved={handleDerivedSaved} />
-                    </CardBody>
-                  </Card>
-                ) : rightMode === "replace" ? (
-                  <Card className="flex min-h-0 flex-1 flex-col lg:h-auto">
-                    <CardHeader
-                      title="Buscar y reemplazar"
-                      description="Corrige valores por columna con reglas y guarda el archivo corregido."
-                    />
-                    <CardBody className="thin-scroll min-h-0 flex-1 overflow-y-auto">
-                      <ReplaceView dataset={detail} onSaved={handleDerivedSaved} />
-                    </CardBody>
-                  </Card>
-                ) : (
-                  <>
-                    <Card className="shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setFiltersOpen((open) => !open)}
-                        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                      >
-                        <span className="flex items-baseline gap-2">
-                          <span className="text-sm font-medium text-slate-900">Filtros</span>
-                          <span className="text-xs text-slate-500">
-                            {detail.columns.length} columnas ·{" "}
-                            {detail.row_count != null ? formatNumber(detail.row_count) : "?"} filas
-                            {appliedFilter ? " · filtro activo" : ""}
-                          </span>
-                        </span>
-                        <span className="text-xs font-medium text-emerald-700">
-                          {filtersOpen ? "Ocultar ▲" : "Mostrar ▼"}
-                        </span>
-                      </button>
-                      {filtersOpen ? (
-                        <CardBody className="thin-scroll max-h-[38vh] space-y-3 overflow-y-auto pt-0">
-                          {detail.sheets.length > 1 ? (
-                            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                              <Label htmlFor="sheet">Hoja de Excel</Label>
-                              <Select
-                                id="sheet"
-                                className="h-8 w-48"
-                                value={detail.active_sheet ?? ""}
-                                disabled={detail.status !== "ready"}
-                                onChange={(event) => handleSheetChange(event.target.value)}
-                              >
-                                {detail.sheets.map((sheetName) => (
-                                  <option key={sheetName} value={sheetName}>
-                                    {sheetName}
-                                  </option>
-                                ))}
-                              </Select>
-                              {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
-                            </div>
-                          ) : null}
-                          <FilterBuilder
-                            key={`${detail.id}-${detail.active_sheet ?? ""}`}
-                            datasetId={detail.id}
-                            columns={detail.columns}
-                            applying={previewLoading}
-                            onApply={handleApply}
-                          />
-                        </CardBody>
-                      ) : null}
-                    </Card>
+                  </div>
+                </Card>
 
-                    <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
-                      <CardHeader title="Vista previa" />
-                      <CardBody className="flex min-h-0 flex-1 flex-col">
-                        <SheetGrid
+                {activeTool ? (
+                  <Drawer
+                    title={TOOL_TITLES[activeTool].title}
+                    description={TOOL_TITLES[activeTool].description}
+                    onClose={() => setActiveTool(null)}
+                  >
+                    {activeTool === "filter" ? (
+                      <div className="space-y-3">
+                        {detail.sheets.length > 1 ? (
+                          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                            <Label htmlFor="sheet">Hoja de Excel</Label>
+                            <Select
+                              id="sheet"
+                              className="h-8 w-48"
+                              value={detail.active_sheet ?? ""}
+                              disabled={detail.status !== "ready"}
+                              onChange={(event) => handleSheetChange(event.target.value)}
+                            >
+                              {detail.sheets.map((sheetName) => (
+                                <option key={sheetName} value={sheetName}>
+                                  {sheetName}
+                                </option>
+                              ))}
+                            </Select>
+                            {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
+                          </div>
+                        ) : null}
+                        <FilterBuilder
                           key={`${detail.id}-${detail.active_sheet ?? ""}`}
                           datasetId={detail.id}
-                          filter={appliedFilter}
-                          sort={sort}
-                          ready={datasetReady}
-                          onSort={handleSort}
-                          onTotalChange={setMatchedCount}
-                          onLoadingChange={setPreviewLoading}
-                          loadingLabel={
-                            appliedFilter
-                              ? "Aplicando filtros…"
-                              : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
-                          }
-                        />
-                      </CardBody>
-                      <div className="shrink-0 border-t border-slate-200 px-4 py-3">
-                        <DownloadBar
-                          totalMatched={matchedCount}
-                          downloading={downloading}
-                          onDownload={handleDownload}
+                          columns={detail.columns}
+                          applying={previewLoading}
+                          onApply={handleApply}
                         />
                       </div>
-                    </Card>
-                  </>
-                )}
-              </>
+                    ) : activeTool === "pivot" ? (
+                      <PivotView dataset={detail} onSaved={handleDerivedSaved} />
+                    ) : activeTool === "compute" ? (
+                      <ComputeView dataset={detail} onSaved={handleDerivedSaved} />
+                    ) : (
+                      <ReplaceView dataset={detail} onSaved={handleDerivedSaved} />
+                    )}
+                  </Drawer>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>

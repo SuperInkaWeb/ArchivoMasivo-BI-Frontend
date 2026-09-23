@@ -55,11 +55,11 @@ const COMMANDS: Array<{ mode: WorkspaceMode; label: string; icon: ReactNode }> =
 ];
 
 interface RibbonProps {
-  mode: WorkspaceMode;
+  mode: WorkspaceMode | null; // null = ninguna herramienta abierta
   onChange: (mode: WorkspaceMode) => void;
 }
 
-/** Cinta de opciones estilo Excel: agrupa las herramientas del panel derecho. */
+/** Barra de herramientas: cada botón abre/cierra su panel lateral sobre la tabla. */
 export function Ribbon({ mode, onChange }: RibbonProps) {
   return (
     <div className="flex shrink-0 flex-wrap items-stretch gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
