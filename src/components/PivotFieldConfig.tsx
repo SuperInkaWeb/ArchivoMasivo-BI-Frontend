@@ -75,7 +75,7 @@ function DropZone({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div className="rounded-lg border border-slate-200 p-2">
+    <div className="rounded-lg border border-slate-300 bg-slate-50 p-2">
       <div className="mb-1 flex items-center justify-between">
         <span className="text-xs font-medium text-slate-600">{title}</span>
         <span className="text-[10px] text-slate-400">{hint}</span>
@@ -84,7 +84,7 @@ function DropZone({
         ref={setNodeRef}
         className={
           "flex min-h-[38px] flex-wrap items-center gap-1.5 rounded-md border border-dashed p-1.5 " +
-          (isOver ? "border-emerald-400 bg-emerald-50" : "border-slate-200")
+          (isOver ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-white")
         }
       >
         {empty ? <span className="px-1 text-[11px] text-slate-300">Arrastra un campo aquí</span> : children}
@@ -131,7 +131,7 @@ export function PivotFieldConfig({
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 p-2">
+        <div className="rounded-lg border border-slate-300 bg-slate-50 p-2">
           <p className="mb-2 text-xs font-medium text-slate-500">Campos</p>
           <div className="flex flex-wrap gap-1.5">
             {columns.map((name) => (

@@ -41,7 +41,7 @@ export function FilterGroupEditor({
       className={
         isRoot
           ? "space-y-2"
-          : "space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2"
+          : "space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2"
       }
     >
       <div className="flex items-center justify-between gap-2">

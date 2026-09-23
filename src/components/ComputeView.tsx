@@ -206,7 +206,7 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
           const meta = FUNCTION_META.get(draft.fn)!;
           const canAddArg = meta.max === null || draft.args.length < meta.max;
           return (
-            <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div key={index} className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-3">
               <div className="flex items-center gap-2">
                 <Input
                   className="h-8 flex-1"

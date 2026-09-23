@@ -131,7 +131,7 @@ export function ReplaceView({ dataset, onSaved }: ReplaceViewProps) {
         {drafts.map((draft, index) => {
           const mode = MODES.find((m) => m.value === draft.mode)!;
           return (
-            <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div key={index} className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Select
                   className="h-8 w-44"
