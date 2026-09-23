@@ -44,6 +44,7 @@ interface SheetGridProps {
   filter: FilterGroup | null;
   sort: SortSpec | null;
   ready: boolean;
+  search: string;
   onSort: (column: string) => void;
   onTotalChange: (total: number | null) => void;
   onLoadingChange?: (loading: boolean) => void;
@@ -55,6 +56,7 @@ export function SheetGrid({
   filter,
   sort,
   ready,
+  search,
   onSort,
   onTotalChange,
   onLoadingChange,
@@ -65,6 +67,7 @@ export function SheetGrid({
     filter,
     sort,
     ready,
+    search,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<Cell | null>(null);
@@ -92,7 +95,7 @@ export function SheetGrid({
   }, [items, ensureRange]);
 
   // Vuelve al inicio y limpia la selección al cambiar dataset / filtro / orden.
-  const resetKey = `${datasetId}|${JSON.stringify(filter)}|${sort ? `${sort.column}:${sort.direction}` : ""}`;
+  const resetKey = `${datasetId}|${JSON.stringify(filter)}|${sort ? `${sort.column}:${sort.direction}` : ""}|${search}`;
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
     virtualizer.scrollToOffset(0);

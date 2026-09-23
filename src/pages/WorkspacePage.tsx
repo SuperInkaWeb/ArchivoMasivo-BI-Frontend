@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Label, Select } from "@/components/ui/field";
+import { Input, Label, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { DatasetList } from "@/components/DatasetList";
@@ -48,6 +48,14 @@ export function WorkspacePage() {
   const [matchedCount, setMatchedCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // Búsqueda global (input inmediato + valor con debounce que llega al backend).
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   // Resultado de una herramienta (pivote/columnas/reemplazar) mostrado al centro.
   const [toolResult, setToolResult] = useState<PreviewResponse | null>(null);
   const [toolLoading, setToolLoading] = useState(false);
@@ -87,6 +95,8 @@ export function WorkspacePage() {
     setAppliedFilter(null); // vista completa inicial (sin filtro)
     setSort(null);
     setMatchedCount(null);
+    setSearchInput("");
+    setSearch("");
     setActionError(null);
     setNotice(null);
     setActiveTool(null); // abre solo con la tabla al centro
@@ -199,6 +209,7 @@ export function WorkspacePage() {
         sort: sort ? [sort] : [],
         format,
         ...(format === "txt" && delimiter ? { delimiter } : {}),
+        ...(search.trim() ? { search: search.trim() } : {}),
       });
       saveBlob(file.blob, file.filename);
     } catch (err) {
@@ -314,7 +325,16 @@ export function WorkspacePage() {
               </Card>
             ) : detail ? (
               <div className="relative flex min-h-0 flex-1 flex-col gap-3">
-                <Ribbon mode={activeTool} onChange={toggleTool} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Ribbon mode={activeTool} onChange={toggleTool} />
+                  <Input
+                    type="search"
+                    className="ml-auto h-9 w-64"
+                    placeholder="Buscar en todo el archivo…"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                  />
+                </div>
 
                 <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
                   {toolResult || toolLoading ? (
@@ -368,6 +388,7 @@ export function WorkspacePage() {
                           filter={appliedFilter}
                           sort={sort}
                           ready={datasetReady}
+                          search={search}
                           onSort={handleSort}
                           onTotalChange={setMatchedCount}
                           onLoadingChange={setPreviewLoading}

@@ -36,6 +36,7 @@ export function useSheetData(
   filter: FilterGroup | null,
   sort: SortSpec | null,
   ready: boolean,
+  search: string,
 ): SheetData {
   const [columns, setColumns] = useState<string[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -54,6 +55,8 @@ export function useSheetData(
   sortRef.current = sort;
   const datasetRef = useRef(datasetId);
   datasetRef.current = datasetId;
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
   const filterKey = JSON.stringify(filter);
   const sortKey = sort ? `${sort.column}:${sort.direction}` : "";
@@ -71,6 +74,7 @@ export function useSheetData(
       sort: sortRef.current ? [sortRef.current] : [],
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
+      ...(searchRef.current.trim() ? { search: searchRef.current.trim() } : {}),
     })
       .then((response) => {
         if (myReq !== reqRef.current) return;
@@ -105,7 +109,7 @@ export function useSheetData(
       return;
     }
     fetchPage(0);
-  }, [datasetId, filterKey, sortKey, ready, fetchPage]);
+  }, [datasetId, filterKey, sortKey, ready, search, fetchPage]);
 
   const getRow = useCallback((index: number) => rowsRef.current.get(index), []);
 

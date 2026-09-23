@@ -94,6 +94,7 @@ export interface FilterRequest {
 export interface PreviewRequest extends FilterRequest {
   limit: number;
   offset: number;
+  search?: string; // búsqueda global: aparece en cualquier columna (insensible)
 }
 
 export interface PreviewResponse {
@@ -107,6 +108,7 @@ export interface PreviewResponse {
 export interface DownloadRequest extends FilterRequest {
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
+  search?: string; // misma búsqueda global que la vista previa
 }
 
 // --- Tablas dinámicas (pivote) ---
