@@ -43,6 +43,8 @@ export function WorkspacePage() {
   // Pestaña de la lista (Originales / Reportes) y modo del panel derecho.
   const [originTab, setOriginTab] = useState<OriginTab>("uploaded");
   const [rightMode, setRightMode] = useState<RightMode>("filter");
+  // Panel de filtros plegable: cerrado por defecto para que la cuadrícula ocupe más.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const isDerived = (dataset: DatasetSummary) => dataset.origin !== "uploaded";
   const visibleDatasets = datasets.filter((dataset) =>
     originTab === "uploaded" ? !isDerived(dataset) : isDerived(dataset),
@@ -107,6 +109,7 @@ export function WorkspacePage() {
 
   function handleApply(filter: FilterGroup | null) {
     setAppliedFilter(filter);
+    setFiltersOpen(false); // al aplicar, contrae para ver el resultado en grande
   }
 
   // Ciclo de orden al clicar una columna: asc -> desc -> sin orden.
@@ -276,71 +279,81 @@ export function WorkspacePage() {
                 ) : (
                   <>
                     <Card className="shrink-0">
-                      <CardHeader
-                        title="Filtros"
-                        description={`${detail.columns.length} columnas · ${
-                          detail.row_count != null ? formatNumber(detail.row_count) : "?"
-                        } filas`}
-                      />
-                  <CardBody className="thin-scroll max-h-[42vh] space-y-3 overflow-y-auto">
-                    {detail.sheets.length > 1 ? (
-                      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Label htmlFor="sheet">Hoja de Excel</Label>
-                        <Select
-                          id="sheet"
-                          className="h-8 w-48"
-                          value={detail.active_sheet ?? ""}
-                          disabled={detail.status !== "ready"}
-                          onChange={(event) => handleSheetChange(event.target.value)}
-                        >
-                          {detail.sheets.map((sheetName) => (
-                            <option key={sheetName} value={sheetName}>
-                              {sheetName}
-                            </option>
-                          ))}
-                        </Select>
-                        {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
-                      </div>
-                    ) : null}
-                    <FilterBuilder
-                      key={`${detail.id}-${detail.active_sheet ?? ""}`}
-                      datasetId={detail.id}
-                      columns={detail.columns}
-                      applying={previewLoading}
-                      onApply={handleApply}
-                    />
-                  </CardBody>
-                </Card>
+                      <button
+                        type="button"
+                        onClick={() => setFiltersOpen((open) => !open)}
+                        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                      >
+                        <span className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium text-slate-900">Filtros</span>
+                          <span className="text-xs text-slate-500">
+                            {detail.columns.length} columnas ·{" "}
+                            {detail.row_count != null ? formatNumber(detail.row_count) : "?"} filas
+                            {appliedFilter ? " · filtro activo" : ""}
+                          </span>
+                        </span>
+                        <span className="text-xs font-medium text-emerald-700">
+                          {filtersOpen ? "Ocultar ▲" : "Mostrar ▼"}
+                        </span>
+                      </button>
+                      {filtersOpen ? (
+                        <CardBody className="thin-scroll max-h-[38vh] space-y-3 overflow-y-auto pt-0">
+                          {detail.sheets.length > 1 ? (
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                              <Label htmlFor="sheet">Hoja de Excel</Label>
+                              <Select
+                                id="sheet"
+                                className="h-8 w-48"
+                                value={detail.active_sheet ?? ""}
+                                disabled={detail.status !== "ready"}
+                                onChange={(event) => handleSheetChange(event.target.value)}
+                              >
+                                {detail.sheets.map((sheetName) => (
+                                  <option key={sheetName} value={sheetName}>
+                                    {sheetName}
+                                  </option>
+                                ))}
+                              </Select>
+                              {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
+                            </div>
+                          ) : null}
+                          <FilterBuilder
+                            key={`${detail.id}-${detail.active_sheet ?? ""}`}
+                            datasetId={detail.id}
+                            columns={detail.columns}
+                            applying={previewLoading}
+                            onApply={handleApply}
+                          />
+                        </CardBody>
+                      ) : null}
+                    </Card>
 
-                <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
-                  <CardHeader title="Vista previa" />
-                  <CardBody className="flex min-h-0 flex-1 flex-col">
-                    <SheetGrid
-                      key={`${detail.id}-${detail.active_sheet ?? ""}`}
-                      datasetId={detail.id}
-                      filter={appliedFilter}
-                      sort={sort}
-                      ready={datasetReady}
-                      onSort={handleSort}
-                      onTotalChange={setMatchedCount}
-                      onLoadingChange={setPreviewLoading}
-                      loadingLabel={
-                        appliedFilter
-                          ? "Aplicando filtros…"
-                          : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
-                      }
-                    />
-                  </CardBody>
-                </Card>
-
-                    <Card className="shrink-0">
-                      <CardBody>
+                    <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
+                      <CardHeader title="Vista previa" />
+                      <CardBody className="flex min-h-0 flex-1 flex-col">
+                        <SheetGrid
+                          key={`${detail.id}-${detail.active_sheet ?? ""}`}
+                          datasetId={detail.id}
+                          filter={appliedFilter}
+                          sort={sort}
+                          ready={datasetReady}
+                          onSort={handleSort}
+                          onTotalChange={setMatchedCount}
+                          onLoadingChange={setPreviewLoading}
+                          loadingLabel={
+                            appliedFilter
+                              ? "Aplicando filtros…"
+                              : "Cargando archivo… los archivos grandes pueden tardar unos segundos."
+                          }
+                        />
+                      </CardBody>
+                      <div className="shrink-0 border-t border-slate-200 px-4 py-3">
                         <DownloadBar
                           totalMatched={matchedCount}
                           downloading={downloading}
                           onDownload={handleDownload}
                         />
-                      </CardBody>
+                      </div>
                     </Card>
                   </>
                 )}
