@@ -33,7 +33,7 @@ function FieldChip({ name }: { name: string }) {
       {...listeners}
       {...attributes}
       className={
-        "cursor-grab touch-none rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:border-emerald-300 active:cursor-grabbing " +
+        "cursor-grab touch-none rounded-md border border-slate-400 bg-white px-2 py-1 text-xs text-slate-700 hover:border-emerald-500 active:cursor-grabbing " +
         (isDragging ? "opacity-60" : "")
       }
     >
@@ -84,7 +84,7 @@ function DropZone({
         ref={setNodeRef}
         className={
           "flex min-h-[38px] flex-wrap items-center gap-1.5 rounded-md border border-dashed p-1.5 " +
-          (isOver ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-white")
+          (isOver ? "border-emerald-500 bg-emerald-50" : "border-slate-400 bg-white")
         }
       >
         {empty ? <span className="px-1 text-[11px] text-slate-300">Arrastra un campo aquí</span> : children}
@@ -160,7 +160,7 @@ export function PivotFieldConfig({
             {measures.map((measure, index) => (
               <span
                 key={index}
-                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-1.5 py-0.5"
               >
                 <Select
                   className="!h-6 w-24 !text-xs"
@@ -193,7 +193,7 @@ export function PivotFieldConfig({
             <button
               type="button"
               onClick={() => setMeasures((current) => [...current, { aggregation: "count" }])}
-              className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-500 hover:border-emerald-400"
+              className="rounded-md border border-dashed border-slate-400 px-2 py-0.5 text-[11px] text-slate-500 hover:border-emerald-500"
             >
               + Conteo de filas
             </button>
