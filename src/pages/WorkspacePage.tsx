@@ -45,6 +45,8 @@ export function WorkspacePage() {
   const [rightMode, setRightMode] = useState<RightMode>("filter");
   // Panel de filtros plegable: cerrado por defecto para que la cuadrícula ocupe más.
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Lista lateral colapsable: se pliega al abrir un archivo para dar todo el ancho.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const isDerived = (dataset: DatasetSummary) => dataset.origin !== "uploaded";
   const visibleDatasets = datasets.filter((dataset) =>
     originTab === "uploaded" ? !isDerived(dataset) : isDerived(dataset),
@@ -69,6 +71,7 @@ export function WorkspacePage() {
     setActionError(null);
     setNotice(null);
     setRightMode("filter");
+    setSidebarOpen(false); // al abrir un archivo, colapsa la lista para ver los datos en grande
   }
 
   async function handleDerivedSaved(name: string) {
@@ -160,11 +163,22 @@ export function WorkspacePage() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* Encabezado fijo (no se desplaza) */}
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">DataFilter</h1>
-          <p className="text-xs text-slate-500">
-            Sube archivos grandes, filtra por columnas y descarga solo el resultado.
-          </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((open) => !open)}
+            aria-label={sidebarOpen ? "Ocultar panel de archivos" : "Mostrar panel de archivos"}
+            title="Panel de archivos"
+            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50"
+          >
+            ☰
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">DataFilter</h1>
+            <p className="text-xs text-slate-500">
+              Sube archivos grandes, filtra por columnas y descarga solo el resultado.
+            </p>
+          </div>
         </div>
         {authEnabled ? <UserMenu /> : null}
       </header>
@@ -185,8 +199,14 @@ export function WorkspacePage() {
 
       {/* Zona principal: en escritorio queda fija y cada columna scrollea por dentro. */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:overflow-hidden">
-        <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[360px_1fr]">
-          {/* Columna izquierda: subir + lista */}
+        <div
+          className={
+            "grid gap-4 lg:h-full lg:min-h-0 " +
+            (sidebarOpen ? "lg:grid-cols-[360px_1fr]" : "lg:grid-cols-[1fr]")
+          }
+        >
+          {/* Columna izquierda: subir + lista (colapsable) */}
+          {sidebarOpen ? (
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
             <Card className="shrink-0">
               <CardBody>
@@ -217,6 +237,7 @@ export function WorkspacePage() {
               </div>
             </Card>
           </div>
+          ) : null}
 
           {/* Columna derecha: filtros fijos + preview que scrollea + descarga */}
           <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
