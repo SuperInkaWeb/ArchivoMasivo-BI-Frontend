@@ -56,6 +56,32 @@ function argLabel(meta: FunctionMeta, index: number): string {
   return `${last} ${index + 1}`;
 }
 
+// Operadores que se muestran en infijo (A + B) y nombre corto del resto para el preview.
+const INFIX_TOKENS: Partial<Record<FunctionName, string>> = { add: "+", sub: "−", mul: "×", div: "÷" };
+const FN_TOKENS: Partial<Record<FunctionName, string>> = {
+  concat: "UNIR", upper: "MAYÚS", lower: "minús", trim: "LIMPIAR", length: "LARGO",
+  substr: "EXTRAER", replace: "REEMPLAZAR", round: "REDONDEAR",
+  year: "AÑO", month: "MES", day: "DÍA", datediff_days: "DÍAS_ENTRE",
+};
+
+/** Texto legible de un argumento para el preview (columna, número o "texto"). */
+function argText(arg: ArgDraft): string {
+  if (arg.source === "column") return arg.column || "?";
+  if (arg.literal.trim() === "") return "?";
+  const value = coerceLiteral(arg.literal);
+  return typeof value === "number" ? String(value) : `"${arg.literal}"`;
+}
+
+/** Fórmula legible de una columna calculada, p. ej. `Total = column03 × 1.18`. */
+function previewFormula(draft: ColumnDraft): string {
+  const name = draft.name.trim() || "(sin nombre)";
+  const parts = draft.args.map(argText);
+  const infix = INFIX_TOKENS[draft.fn];
+  if (infix && parts.length >= 2) return `${name} = ${parts.join(` ${infix} `)}`;
+  const token = FN_TOKENS[draft.fn] ?? draft.fn;
+  return `${name} = ${token}(${parts.join(", ")})`;
+}
+
 interface ArgDraft {
   source: "column" | "literal";
   column: string;
@@ -328,6 +354,15 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                   </Button>
                 ) : null}
                 {meta.hint ? <p className="text-xs text-slate-400">{meta.hint}</p> : null}
+              </div>
+
+              <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5">
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  Fórmula
+                </span>
+                <code className="truncate font-mono text-[11px] text-slate-700">
+                  {previewFormula(draft)}
+                </code>
               </div>
             </div>
           );
