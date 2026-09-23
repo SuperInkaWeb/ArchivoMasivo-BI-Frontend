@@ -19,32 +19,42 @@ import type {
 const PAGE_SIZE = 100;
 
 // Funciones expuestas en el editor plano (cada argumento es una columna o un valor).
-const FUNCTIONS: Array<{
+interface FunctionMeta {
   value: FunctionName;
   label: string;
   min: number;
   max: number | null;
+  argLabels: string[]; // nombre de cada argumento (para funciones con más args se repite el último)
   hint?: string;
-}> = [
-  { value: "concat", label: "Unir texto (CONCAT)", min: 2, max: null, hint: "Añade un valor \" \" para separar." },
-  { value: "upper", label: "MAYÚSCULAS", min: 1, max: 1 },
-  { value: "lower", label: "minúsculas", min: 1, max: 1 },
-  { value: "trim", label: "Quitar espacios sobrantes", min: 1, max: 1 },
-  { value: "length", label: "Longitud del texto", min: 1, max: 1 },
-  { value: "substr", label: "Extraer texto (SUBSTR)", min: 2, max: 3, hint: "texto, inicio[, longitud]" },
-  { value: "replace", label: "Reemplazar texto", min: 3, max: 3, hint: "texto, buscar, reemplazo" },
-  { value: "add", label: "Sumar (+)", min: 2, max: 2 },
-  { value: "sub", label: "Restar (−)", min: 2, max: 2 },
-  { value: "mul", label: "Multiplicar (×)", min: 2, max: 2 },
-  { value: "div", label: "Dividir (÷)", min: 2, max: 2 },
-  { value: "round", label: "Redondear", min: 1, max: 2, hint: "número[, decimales]" },
-  { value: "year", label: "Año de una fecha", min: 1, max: 1 },
-  { value: "month", label: "Mes de una fecha", min: 1, max: 1 },
-  { value: "day", label: "Día de una fecha", min: 1, max: 1 },
-  { value: "datediff_days", label: "Días entre dos fechas", min: 2, max: 2, hint: "fecha_a, fecha_b" },
+}
+
+const FUNCTIONS: FunctionMeta[] = [
+  { value: "concat", label: "Unir texto (CONCAT)", min: 2, max: null, argLabels: ["Parte"], hint: 'Añade un "Valor fijo" con un espacio " " para separar.' },
+  { value: "upper", label: "MAYÚSCULAS", min: 1, max: 1, argLabels: ["Texto"] },
+  { value: "lower", label: "minúsculas", min: 1, max: 1, argLabels: ["Texto"] },
+  { value: "trim", label: "Quitar espacios sobrantes", min: 1, max: 1, argLabels: ["Texto"] },
+  { value: "length", label: "Longitud del texto", min: 1, max: 1, argLabels: ["Texto"] },
+  { value: "substr", label: "Extraer texto (SUBSTR)", min: 2, max: 3, argLabels: ["Texto", "Inicio", "Longitud"] },
+  { value: "replace", label: "Reemplazar texto", min: 3, max: 3, argLabels: ["Texto", "Buscar", "Reemplazo"] },
+  { value: "add", label: "Sumar (+)", min: 2, max: 2, argLabels: ["Valor A", "Valor B"] },
+  { value: "sub", label: "Restar (−)", min: 2, max: 2, argLabels: ["Valor A", "Valor B"] },
+  { value: "mul", label: "Multiplicar (×)", min: 2, max: 2, argLabels: ["Valor A", "Valor B"] },
+  { value: "div", label: "Dividir (÷)", min: 2, max: 2, argLabels: ["Dividendo", "Divisor"] },
+  { value: "round", label: "Redondear", min: 1, max: 2, argLabels: ["Número", "Decimales"] },
+  { value: "year", label: "Año de una fecha", min: 1, max: 1, argLabels: ["Fecha"] },
+  { value: "month", label: "Mes de una fecha", min: 1, max: 1, argLabels: ["Fecha"] },
+  { value: "day", label: "Día de una fecha", min: 1, max: 1, argLabels: ["Fecha"] },
+  { value: "datediff_days", label: "Días entre dos fechas", min: 2, max: 2, argLabels: ["Fecha A", "Fecha B"] },
 ];
 
 const FUNCTION_META = new Map(FUNCTIONS.map((f) => [f.value, f]));
+
+/** Etiqueta del argumento en la posición `index` (numera cuando la función acepta varios). */
+function argLabel(meta: FunctionMeta, index: number): string {
+  if (index < meta.argLabels.length) return meta.argLabels[index];
+  const last = meta.argLabels[meta.argLabels.length - 1] ?? "Valor";
+  return `${last} ${index + 1}`;
+}
 
 interface ArgDraft {
   source: "column" | "literal";
@@ -71,10 +81,16 @@ function newColumnDraft(): ColumnDraft {
   return { name: "", fn: "concat", args: [newArg(), newArg()] };
 }
 
-/** Convierte "10.5" a número; deja el resto como texto (para literales de funciones). */
+/**
+ * Convierte "10.5" a número, pero deja como texto lo que no representa el mismo
+ * número al volver a texto (p. ej. "08" -> queda "08", no 8). Así se preservan
+ * códigos con ceros a la izquierda al unir texto.
+ */
 function coerceLiteral(raw: string): string | number {
   const trimmed = raw.trim();
-  return trimmed !== "" && !Number.isNaN(Number(trimmed)) ? Number(trimmed) : raw;
+  if (trimmed === "") return raw;
+  const asNumber = Number(trimmed);
+  return !Number.isNaN(asNumber) && String(asNumber) === trimmed ? asNumber : raw;
 }
 
 export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
@@ -207,28 +223,34 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
           const canAddArg = meta.max === null || draft.args.length < meta.max;
           return (
             <div key={index} className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-3">
-              <div className="flex items-center gap-2">
-                <Input
-                  className="h-8 flex-1"
-                  placeholder="Nombre de la columna nueva"
-                  value={draft.name}
-                  onChange={(event) => updateDraft(index, { name: event.target.value })}
-                />
-                <Select
-                  className="h-8 w-56"
-                  value={draft.fn}
-                  onChange={(event) => changeFn(index, event.target.value as FunctionName)}
-                >
-                  {FUNCTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="min-w-[200px] flex-1">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">
+                    Nombre de la columna nueva
+                  </span>
+                  <Input
+                    placeholder="p. ej. Nombre completo"
+                    value={draft.name}
+                    onChange={(event) => updateDraft(index, { name: event.target.value })}
+                  />
+                </label>
+                <label className="w-56">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Función</span>
+                  <Select
+                    value={draft.fn}
+                    onChange={(event) => changeFn(index, event.target.value as FunctionName)}
+                  >
+                    {FUNCTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 {drafts.length > 1 ? (
                   <button
                     type="button"
-                    className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    className="mb-1 rounded-md px-2 py-1.5 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
                     onClick={() => setDrafts((current) => current.filter((_, i) => i !== index))}
                     aria-label="Quitar columna"
                   >
@@ -237,11 +259,14 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                 ) : null}
               </div>
 
-              <div className="space-y-2 pl-1">
+              <div className="space-y-2">
                 {draft.args.map((arg, argIndex) => (
                   <div key={argIndex} className="flex items-center gap-2">
+                    <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+                      {argLabel(meta, argIndex)}
+                    </span>
                     <Select
-                      className="h-8 w-28"
+                      className="w-32"
                       value={arg.source}
                       onChange={(event) =>
                         updateArg(index, argIndex, { source: event.target.value as ArgDraft["source"] })
@@ -252,7 +277,7 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                     </Select>
                     {arg.source === "column" ? (
                       <Select
-                        className="h-8 flex-1"
+                        className="flex-1"
                         value={arg.column}
                         onChange={(event) => updateArg(index, argIndex, { column: event.target.value })}
                       >
@@ -265,8 +290,8 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                       </Select>
                     ) : (
                       <Input
-                        className="h-8 flex-1"
-                        placeholder="Valor (texto o número)"
+                        className="flex-1"
+                        placeholder="Texto o número"
                         value={arg.literal}
                         onChange={(event) => updateArg(index, argIndex, { literal: event.target.value })}
                       />
@@ -274,7 +299,7 @@ export function ComputeView({ dataset, onSaved }: ComputeViewProps) {
                     {draft.args.length > meta.min ? (
                       <button
                         type="button"
-                        className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-red-50 hover:text-red-600"
                         onClick={() =>
                           setDrafts((current) =>
                             current.map((d, i) =>

@@ -1,6 +1,8 @@
-/** Une clases condicionalmente (equivalente ligero a clsx, sin dependencia). */
+import { twMerge } from "tailwind-merge";
+
+/** Une clases condicionalmente resolviendo conflictos de Tailwind (gana la última). */
 export function cn(...classes: Array<string | false | null | undefined>): string {
-  return classes.filter(Boolean).join(" ");
+  return twMerge(classes.filter(Boolean).join(" "));
 }
 
 /** Formatea bytes a una unidad legible. */
