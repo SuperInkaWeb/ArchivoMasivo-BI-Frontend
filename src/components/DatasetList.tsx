@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { cn, formatBytes, formatNumber } from "@/lib/utils";
@@ -20,6 +21,9 @@ export function DatasetList({
   onSelect,
   onDelete,
 }: DatasetListProps) {
+  // Eliminación en dos pasos: el segundo clic (en rojo) confirma. Evita borrados por accidente.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   if (loading && datasets.length === 0) {
     return (
       <div className="flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
@@ -62,17 +66,43 @@ export function DatasetList({
                 <p className="mt-1 text-xs text-red-600">{dataset.error}</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
-              onClick={(event) => {
-                event.stopPropagation();
-                onDelete(dataset);
-              }}
-              aria-label={`Eliminar ${dataset.original_filename}`}
-            >
-              Eliminar
-            </button>
+            {confirmingId === dataset.id ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmingId(null);
+                    onDelete(dataset);
+                  }}
+                >
+                  Confirmar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmingId(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setConfirmingId(dataset.id);
+                }}
+                aria-label={`Eliminar ${dataset.original_filename}`}
+              >
+                Eliminar
+              </button>
+            )}
           </li>
         );
       })}

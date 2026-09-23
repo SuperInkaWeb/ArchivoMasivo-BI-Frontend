@@ -11,6 +11,7 @@ import type {
   Delimiter,
   DownloadFormat,
   Expression,
+  FilterGroup,
   FunctionName,
   PreviewResponse,
 } from "@/types";
@@ -117,6 +118,7 @@ interface ColumnDraft {
 
 interface ComputeViewProps {
   dataset: DatasetDetail;
+  filter: FilterGroup | null; // filtro activo: las columnas se calculan solo sobre esas filas
   busy: boolean;
   onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
   onSaved: (name: string) => void;
@@ -142,7 +144,7 @@ function coerceLiteral(raw: string): string | number {
   return !Number.isNaN(asNumber) && String(asNumber) === trimmed ? asNumber : raw;
 }
 
-export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewProps) {
+export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: ComputeViewProps) {
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<ColumnDraft[]>([newColumnDraft()]);
   const [saving, setSaving] = useState(false);
@@ -234,7 +236,7 @@ export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewPr
     const columns = validateAndBuild();
     if (!columns) return;
     setError(null);
-    onPreview((offset) => computeDataset(dataset.id, { filter: null, columns, limit: PAGE_SIZE, offset }));
+    onPreview((offset) => computeDataset(dataset.id, { filter, columns, limit: PAGE_SIZE, offset }));
   }
 
   async function handleSave() {
@@ -245,7 +247,7 @@ export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewPr
     setSaving(true);
     setError(null);
     try {
-      await saveComputed(dataset.id, { filter: null, columns, limit: PAGE_SIZE, offset: 0, name: name.trim() });
+      await saveComputed(dataset.id, { filter, columns, limit: PAGE_SIZE, offset: 0, name: name.trim() });
       onSaved(name.trim());
     } catch (err) {
       setError(errorMessage(err));
@@ -261,7 +263,7 @@ export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewPr
     setError(null);
     try {
       const file = await downloadComputed(dataset.id, {
-        filter: null,
+        filter,
         columns,
         format,
         ...(format === "txt" && delimiter ? { delimiter } : {}),
@@ -276,6 +278,11 @@ export function ComputeView({ dataset, busy, onPreview, onSaved }: ComputeViewPr
 
   return (
     <div className="flex flex-col gap-4">
+      {filter ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+          Las columnas se calcularán solo sobre las filas del filtro activo.
+        </p>
+      ) : null}
       <div className="space-y-3">
         {drafts.map((draft, index) => {
           const meta = FUNCTION_META.get(draft.fn)!;

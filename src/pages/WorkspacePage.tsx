@@ -364,6 +364,7 @@ export function WorkspacePage() {
                             offset={toolResult.offset}
                             loading={toolLoading}
                             countLabel={toolCountLabel}
+                            totalsRow={toolResult.totals ?? null}
                             onPageChange={(offset) => toolFetcher && pageTool(toolFetcher, offset)}
                           />
                         ) : (
@@ -410,65 +411,76 @@ export function WorkspacePage() {
                   )}
                 </Card>
 
-                {activeTool ? (
-                  <Drawer
-                    title={TOOL_TITLES[activeTool].title}
-                    description={TOOL_TITLES[activeTool].description}
-                    onClose={() => setActiveTool(null)}
-                  >
-                    {activeTool === "filter" ? (
-                      <div className="space-y-3">
-                        {detail.sheets.length > 1 ? (
-                          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                            <Label htmlFor="sheet">Hoja de Excel</Label>
-                            <Select
-                              id="sheet"
-                              className="h-8 w-48"
-                              value={detail.active_sheet ?? ""}
-                              disabled={detail.status !== "ready"}
-                              onChange={(event) => handleSheetChange(event.target.value)}
-                            >
-                              {detail.sheets.map((sheetName) => (
-                                <option key={sheetName} value={sheetName}>
-                                  {sheetName}
-                                </option>
-                              ))}
-                            </Select>
-                            {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
-                          </div>
-                        ) : null}
-                        <FilterBuilder
-                          key={`${detail.id}-${detail.active_sheet ?? ""}`}
-                          datasetId={detail.id}
-                          columns={detail.columns}
-                          applying={previewLoading}
-                          onApply={handleApply}
-                        />
+                <Drawer
+                  open={activeTool !== null}
+                  title={activeTool ? TOOL_TITLES[activeTool].title : ""}
+                  description={activeTool ? TOOL_TITLES[activeTool].description : undefined}
+                  onClose={() => setActiveTool(null)}
+                >
+                  {/* Las herramientas quedan montadas (solo ocultas) para conservar su
+                      configuración al cerrar/reabrir el panel; se reinician al cambiar de archivo u hoja. */}
+                  <div hidden={activeTool !== "filter"} className="space-y-3">
+                    {detail.sheets.length > 1 ? (
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Label htmlFor="sheet">Hoja de Excel</Label>
+                        <Select
+                          id="sheet"
+                          className="h-8 w-48"
+                          value={detail.active_sheet ?? ""}
+                          disabled={detail.status !== "ready"}
+                          onChange={(event) => handleSheetChange(event.target.value)}
+                        >
+                          {detail.sheets.map((sheetName) => (
+                            <option key={sheetName} value={sheetName}>
+                              {sheetName}
+                            </option>
+                          ))}
+                        </Select>
+                        {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
                       </div>
-                    ) : activeTool === "pivot" ? (
-                      <PivotView
-                        dataset={detail}
-                        busy={toolLoading}
-                        onPreview={runToolPreview}
-                        onSaved={handleDerivedSaved}
-                      />
-                    ) : activeTool === "compute" ? (
-                      <ComputeView
-                        dataset={detail}
-                        busy={toolLoading}
-                        onPreview={runToolPreview}
-                        onSaved={handleDerivedSaved}
-                      />
-                    ) : (
-                      <ReplaceView
-                        dataset={detail}
-                        busy={toolLoading}
-                        onPreview={runToolPreview}
-                        onSaved={handleDerivedSaved}
-                      />
-                    )}
-                  </Drawer>
-                ) : null}
+                    ) : null}
+                    <FilterBuilder
+                      key={`filter-${detail.id}-${detail.active_sheet ?? ""}`}
+                      datasetId={detail.id}
+                      columns={detail.columns}
+                      applying={previewLoading}
+                      onApply={handleApply}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "pivot"}>
+                    <PivotView
+                      key={`pivot-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
+                      busy={toolLoading}
+                      onPreview={runToolPreview}
+                      onSaved={handleDerivedSaved}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "compute"}>
+                    <ComputeView
+                      key={`compute-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
+                      busy={toolLoading}
+                      onPreview={runToolPreview}
+                      onSaved={handleDerivedSaved}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "replace"}>
+                    <ReplaceView
+                      key={`replace-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
+                      busy={toolLoading}
+                      onPreview={runToolPreview}
+                      onSaved={handleDerivedSaved}
+                    />
+                  </div>
+                </Drawer>
               </div>
             ) : null}
           </div>

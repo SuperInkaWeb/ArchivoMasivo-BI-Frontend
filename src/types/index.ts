@@ -103,6 +103,8 @@ export interface PreviewResponse {
   total_matched: number;
   limit: number;
   offset: number;
+  // Fila de Total general (solo la produce el pivote); ausente en las demás vistas.
+  totals?: Record<string, unknown> | null;
 }
 
 export interface DownloadRequest extends FilterRequest {
@@ -120,11 +122,20 @@ export interface Measure {
   aggregation: Aggregation;
 }
 
+/** Orden del reporte: por una columna de agrupación o por una métrica (índice). */
+export interface PivotSort {
+  column?: string | null;
+  measure_index?: number | null;
+  direction: SortDirection;
+}
+
 export interface PivotRequest {
   filter: FilterGroup | null;
   group_by: string[];
   measures: Measure[];
   pivot_column?: string | null; // cross-tab opcional
+  sort?: PivotSort | null; // orden del reporte; ausente = por columnas de agrupación
+  percent_of_total?: boolean; // mostrar cada valor como % del total (solo Suma/Conteo)
   limit: number;
   offset: number;
 }
@@ -135,6 +146,8 @@ export interface PivotResponse {
   total_matched: number;
   limit: number;
   offset: number;
+  // Fila de Total general (métricas sobre todas las filas), sin columnas de agrupación.
+  totals?: Record<string, unknown> | null;
 }
 
 export interface PivotSaveRequest extends PivotRequest {
@@ -147,6 +160,8 @@ export interface PivotDownloadRequest {
   group_by: string[];
   measures: Measure[];
   pivot_column?: string | null;
+  sort?: PivotSort | null;
+  percent_of_total?: boolean;
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }

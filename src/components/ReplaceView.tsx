@@ -9,6 +9,7 @@ import type {
   DatasetDetail,
   Delimiter,
   DownloadFormat,
+  FilterGroup,
   MatchMode,
   PreviewResponse,
   ReplacementRule,
@@ -31,6 +32,7 @@ interface RuleDraft {
 
 interface ReplaceViewProps {
   dataset: DatasetDetail;
+  filter: FilterGroup | null; // filtro activo: la corrección se aplica solo sobre esas filas
   busy: boolean;
   onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
   onSaved: (name: string) => void;
@@ -40,7 +42,7 @@ function newRule(firstColumn: string): RuleDraft {
   return { column: firstColumn, mode: "exact", search: "", replace: "", caseSensitive: true };
 }
 
-export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewProps) {
+export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: ReplaceViewProps) {
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<RuleDraft[]>([newRule(columnNames[0] ?? "")]);
   const [saving, setSaving] = useState(false);
@@ -76,7 +78,7 @@ export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewPr
     const replacements = buildRules();
     if (!replacements) return;
     setError(null);
-    onPreview((offset) => replaceDataset(dataset.id, { filter: null, replacements, limit: PAGE_SIZE, offset }));
+    onPreview((offset) => replaceDataset(dataset.id, { filter, replacements, limit: PAGE_SIZE, offset }));
   }
 
   async function handleSave() {
@@ -87,7 +89,7 @@ export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewPr
     setSaving(true);
     setError(null);
     try {
-      await saveReplace(dataset.id, { filter: null, replacements, name: name.trim() });
+      await saveReplace(dataset.id, { filter, replacements, name: name.trim() });
       onSaved(name.trim());
     } catch (err) {
       setError(errorMessage(err));
@@ -103,7 +105,7 @@ export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewPr
     setError(null);
     try {
       const file = await downloadReplace(dataset.id, {
-        filter: null,
+        filter,
         replacements,
         format,
         ...(format === "txt" && delimiter ? { delimiter } : {}),
@@ -118,6 +120,11 @@ export function ReplaceView({ dataset, busy, onPreview, onSaved }: ReplaceViewPr
 
   return (
     <div className="flex flex-col gap-4">
+      {filter ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+          La corrección se aplicará solo sobre las filas del filtro activo.
+        </p>
+      ) : null}
       <div className="space-y-3">
         {drafts.map((draft, index) => {
           const mode = MODES.find((m) => m.value === draft.mode)!;

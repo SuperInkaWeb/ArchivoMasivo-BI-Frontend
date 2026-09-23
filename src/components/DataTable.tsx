@@ -10,10 +10,21 @@ interface DataTableProps {
   loading: boolean;
   onPageChange: (offset: number) => void;
   countLabel?: string;
+  // Fila de totales fijada al pie (p. ej. Total general del pivote). Sus claves son
+  // nombres de columna; las columnas sin clave quedan en blanco.
+  totalsRow?: Record<string, unknown> | null;
+  totalsLabel?: string;
 }
 
 function renderCell(value: unknown): string {
   if (value === null || value === undefined) return "—";
+  if (typeof value === "number") return cleanNumber(value);
+  return String(value);
+}
+
+/** Celda de la fila de totales: en blanco si la columna no tiene total (p. ej. dimensiones). */
+function renderTotal(value: unknown): string {
+  if (value === null || value === undefined) return "";
   if (typeof value === "number") return cleanNumber(value);
   return String(value);
 }
@@ -28,6 +39,8 @@ export function DataTable({
   loading,
   onPageChange,
   countLabel = "filas",
+  totalsRow,
+  totalsLabel = "Total general",
 }: DataTableProps) {
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + limit, total);
@@ -78,6 +91,17 @@ export function DataTable({
               ))
             )}
           </tbody>
+          {totalsRow && rows.length > 0 ? (
+            <tfoot>
+              <tr className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100 font-semibold text-slate-800">
+                {columns.map((column, index) => (
+                  <td key={column} className="whitespace-nowrap px-3 py-2">
+                    {index === 0 ? totalsLabel : renderTotal(totalsRow[column])}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
       </div>
 
