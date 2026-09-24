@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type WorkspaceMode = "filter" | "pivot" | "compute" | "replace" | "dedupe" | "stats";
+export type WorkspaceMode = "filter" | "pivot" | "compute" | "replace" | "dedupe" | "stats" | "chart";
 
 const iconProps = {
   width: 16,
@@ -64,6 +64,14 @@ function StatsIcon() {
   );
 }
 
+function ChartIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 5h9M4 12h16M4 19h6" />
+    </svg>
+  );
+}
+
 const COMMANDS: Array<{ mode: WorkspaceMode; label: string; icon: ReactNode }> = [
   { mode: "filter", label: "Filtrar", icon: <FilterIcon /> },
   { mode: "pivot", label: "Tabla dinámica", icon: <TableIcon /> },
@@ -71,6 +79,7 @@ const COMMANDS: Array<{ mode: WorkspaceMode; label: string; icon: ReactNode }> =
   { mode: "replace", label: "Buscar y reemplazar", icon: <ReplaceIcon /> },
   { mode: "dedupe", label: "Quitar duplicados", icon: <DedupeIcon /> },
   { mode: "stats", label: "Estadísticas", icon: <StatsIcon /> },
+  { mode: "chart", label: "Gráfico", icon: <ChartIcon /> },
 ];
 
 interface RibbonProps {

@@ -12,6 +12,7 @@ import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
 import { DedupeView } from "@/components/DedupeView";
 import { StatsView } from "@/components/StatsView";
+import { ChartView } from "@/components/ChartView";
 import { Ribbon, type WorkspaceMode } from "@/components/Ribbon";
 import { Drawer } from "@/components/Drawer";
 import { DownloadBar } from "@/components/DownloadBar";
@@ -52,6 +53,7 @@ const TOOL_TITLES: Record<WorkspaceMode, { title: string; description: string }>
   replace: { title: "Buscar y reemplazar", description: "Corrige valores por columna con reglas." },
   dedupe: { title: "Quitar duplicados", description: "Elimina filas repetidas (por fila completa o por columnas clave)." },
   stats: { title: "Estadísticas", description: "Perfil de una columna: conteos, mín/máx, suma y valores frecuentes." },
+  chart: { title: "Gráfico", description: "Barras del top-N de una categoría por una métrica." },
 };
 
 export function WorkspacePage() {
@@ -620,6 +622,14 @@ export function WorkspacePage() {
                   <div hidden={activeTool !== "stats"}>
                     <StatsView
                       key={`stats-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "chart"}>
+                    <ChartView
+                      key={`chart-${detail.id}-${detail.active_sheet ?? ""}`}
                       dataset={detail}
                       filter={appliedFilter}
                     />
