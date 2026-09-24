@@ -13,6 +13,7 @@ import type {
   MatchMode,
   PreviewResponse,
   ReplacementRule,
+  ToolPreviewOptions,
 } from "@/types";
 
 const PAGE_SIZE = 100;
@@ -34,7 +35,7 @@ interface ReplaceViewProps {
   dataset: DatasetDetail;
   filter: FilterGroup | null; // filtro activo: la corrección se aplica solo sobre esas filas
   busy: boolean;
-  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, options: ToolPreviewOptions) => void;
   onSaved: (name: string) => void;
 }
 
@@ -78,7 +79,10 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
     const replacements = buildRules();
     if (!replacements) return;
     setError(null);
-    onPreview((offset) => replaceDataset(dataset.id, { filter, replacements, limit: PAGE_SIZE, offset }));
+    onPreview((offset) => replaceDataset(dataset.id, { filter, replacements, limit: PAGE_SIZE, offset }), {
+      download: handleDownload,
+      save: handleSave,
+    });
   }
 
   async function handleSave() {

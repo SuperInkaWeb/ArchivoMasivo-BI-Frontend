@@ -13,6 +13,7 @@ import { ReplaceView } from "@/components/ReplaceView";
 import { Ribbon, type WorkspaceMode } from "@/components/Ribbon";
 import { Drawer } from "@/components/Drawer";
 import { DownloadBar } from "@/components/DownloadBar";
+import { FormatPicker } from "@/components/FormatPicker";
 import { authEnabled } from "@/auth/authConfig";
 import { UserMenu } from "@/auth/UserMenu";
 import { useDatasets } from "@/hooks/useDatasets";
@@ -26,9 +27,19 @@ import type {
   FilterGroup,
   PreviewResponse,
   SortSpec,
+  ToolPreviewOptions,
 } from "@/types";
 
 type OriginTab = "uploaded" | "derived";
+type ToolExport = Pick<ToolPreviewOptions, "download" | "save">;
+
+/** Cuenta las condiciones (hojas) de un árbol de filtro, para el resumen del chip. */
+function countConditions(node: FilterGroup): number {
+  return node.children.reduce(
+    (total, child) => total + (child.type === "group" ? countConditions(child) : 1),
+    0,
+  );
+}
 
 const TOOL_TITLES: Record<WorkspaceMode, { title: string; description: string }> = {
   filter: { title: "Filtrar", description: "Incluye solo las filas que cumplan tus condiciones." },
@@ -61,6 +72,12 @@ export function WorkspacePage() {
   const [toolLoading, setToolLoading] = useState(false);
   const [toolFetcher, setToolFetcher] = useState<((offset: number) => Promise<PreviewResponse>) | null>(null);
   const [toolCountLabel, setToolCountLabel] = useState("filas");
+  // Acciones de exportar/guardar de la herramienta activa, para ofrecerlas junto al resultado.
+  const [toolExport, setToolExport] = useState<ToolExport | null>(null);
+  const [resultDownloading, setResultDownloading] = useState(false);
+  const [resultSaving, setResultSaving] = useState(false);
+  // Fuerza reiniciar el constructor de filtros al quitar el filtro desde el chip.
+  const [filterResetKey, setFilterResetKey] = useState(0);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -108,6 +125,39 @@ export function WorkspacePage() {
     setToolResult(null);
     setToolLoading(false);
     setToolFetcher(null);
+    setToolExport(null);
+  }
+
+  function handleClearFilter() {
+    setAppliedFilter(null);
+    setFilterResetKey((key) => key + 1); // reinicia el constructor para que quede vacío
+  }
+
+  // Descarga/guarda el resultado mostrado al centro usando las acciones de la herramienta activa.
+  async function handleResultDownload(format: DownloadFormat, delimiter?: Delimiter) {
+    if (!toolExport) return;
+    setResultDownloading(true);
+    setActionError(null);
+    try {
+      await toolExport.download(format, delimiter);
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setResultDownloading(false);
+    }
+  }
+
+  async function handleResultSave() {
+    if (!toolExport) return;
+    setResultSaving(true);
+    setActionError(null);
+    try {
+      await toolExport.save();
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setResultSaving(false);
+    }
   }
 
   function toggleTool(tool: WorkspaceMode) {
@@ -125,9 +175,14 @@ export function WorkspacePage() {
   }
 
   // La herramienta arma el fetcher (con su config); aquí se ejecuta y se muestra al centro.
-  function runToolPreview(fetcher: (offset: number) => Promise<PreviewResponse>, countLabel = "filas") {
+  // Además registra sus acciones de exportar/guardar para ofrecerlas junto al resultado.
+  function runToolPreview(
+    fetcher: (offset: number) => Promise<PreviewResponse>,
+    options: ToolPreviewOptions,
+  ) {
     setToolFetcher(() => fetcher);
-    setToolCountLabel(countLabel);
+    setToolCountLabel(options.countLabel ?? "filas");
+    setToolExport({ download: options.download, save: options.save });
     pageTool(fetcher, 0);
   }
 
@@ -327,6 +382,48 @@ export function WorkspacePage() {
               <div className="relative flex min-h-0 flex-1 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Ribbon mode={activeTool} onChange={toggleTool} />
+
+                  {detail.sheets.length > 1 ? (
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="sheet-top" className="shrink-0">
+                        Hoja
+                      </Label>
+                      <Select
+                        id="sheet-top"
+                        className="h-9 w-44"
+                        value={detail.active_sheet ?? ""}
+                        disabled={detail.status !== "ready"}
+                        onChange={(event) => handleSheetChange(event.target.value)}
+                      >
+                        {detail.sheets.map((sheetName) => (
+                          <option key={sheetName} value={sheetName}>
+                            {sheetName}
+                          </option>
+                        ))}
+                      </Select>
+                      {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
+                    </div>
+                  ) : null}
+
+                  {appliedFilter ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 py-1 pl-2.5 pr-1 text-xs text-emerald-800">
+                      Filtro activo
+                      <span className="text-emerald-600">
+                        ({countConditions(appliedFilter)}
+                        {matchedCount != null ? ` · ${formatNumber(matchedCount)} filas` : ""})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleClearFilter}
+                        aria-label="Quitar filtro"
+                        title="Quitar filtro"
+                        className="rounded-full px-1 text-emerald-600 hover:bg-emerald-100 hover:text-red-600"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : null}
+
                   <Input
                     type="search"
                     className="ml-auto h-9 w-64"
@@ -339,20 +436,41 @@ export function WorkspacePage() {
                 <Card className="flex h-[70vh] min-h-0 flex-col lg:h-auto lg:flex-1">
                   {toolResult || toolLoading ? (
                     <>
-                      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                         <div>
                           <h2 className="text-sm font-semibold text-slate-900">Vista previa del resultado</h2>
                           <p className="mt-0.5 text-xs text-slate-500">
-                            {activeTool ? TOOL_TITLES[activeTool].title : ""} · guarda o descarga desde el panel
+                            {activeTool ? TOOL_TITLES[activeTool].title : ""} · guárdalo o descárgalo aquí
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={clearToolResult}
-                          className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                        >
-                          Volver a los datos
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {toolExport ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleResultSave}
+                                disabled={toolLoading || resultSaving}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                {resultSaving ? <Spinner className="h-3.5 w-3.5" /> : null}
+                                Guardar como archivo
+                              </button>
+                              <FormatPicker
+                                label="Descargar"
+                                downloading={resultDownloading}
+                                disabled={toolLoading}
+                                onDownload={handleResultDownload}
+                              />
+                            </>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={clearToolResult}
+                            className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            Volver a los datos
+                          </button>
+                        </div>
                       </div>
                       <CardBody className="flex min-h-0 flex-1 flex-col">
                         {toolResult ? (
@@ -420,27 +538,8 @@ export function WorkspacePage() {
                   {/* Las herramientas quedan montadas (solo ocultas) para conservar su
                       configuración al cerrar/reabrir el panel; se reinician al cambiar de archivo u hoja. */}
                   <div hidden={activeTool !== "filter"} className="space-y-3">
-                    {detail.sheets.length > 1 ? (
-                      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Label htmlFor="sheet">Hoja de Excel</Label>
-                        <Select
-                          id="sheet"
-                          className="h-8 w-48"
-                          value={detail.active_sheet ?? ""}
-                          disabled={detail.status !== "ready"}
-                          onChange={(event) => handleSheetChange(event.target.value)}
-                        >
-                          {detail.sheets.map((sheetName) => (
-                            <option key={sheetName} value={sheetName}>
-                              {sheetName}
-                            </option>
-                          ))}
-                        </Select>
-                        {detail.status !== "ready" ? <Spinner className="h-4 w-4" /> : null}
-                      </div>
-                    ) : null}
                     <FilterBuilder
-                      key={`filter-${detail.id}-${detail.active_sheet ?? ""}`}
+                      key={`filter-${detail.id}-${detail.active_sheet ?? ""}-${filterResetKey}`}
                       datasetId={detail.id}
                       columns={detail.columns}
                       applying={previewLoading}

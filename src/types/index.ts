@@ -107,6 +107,13 @@ export interface PreviewResponse {
   totals?: Record<string, unknown> | null;
 }
 
+/** Acciones que una herramienta registra al generar un resultado (para exportarlo desde el centro). */
+export interface ToolPreviewOptions {
+  countLabel?: string;
+  download: (format: DownloadFormat, delimiter?: Delimiter) => void | Promise<void>;
+  save: () => void | Promise<void>;
+}
+
 export interface DownloadRequest extends FilterRequest {
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"

@@ -15,6 +15,7 @@ import type {
   Measure,
   PivotSort,
   PreviewResponse,
+  ToolPreviewOptions,
 } from "@/types";
 
 const PAGE_SIZE = 100;
@@ -37,7 +38,7 @@ interface PivotViewProps {
   dataset: DatasetDetail;
   filter: FilterGroup | null; // filtro activo: el reporte se calcula solo sobre esas filas
   busy: boolean;
-  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, options: ToolPreviewOptions) => void;
   onSaved: (name: string) => void;
 }
 
@@ -101,7 +102,11 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
       return;
     }
     setError(null);
-    onPreview((offset) => pivotDataset(dataset.id, buildRequest(offset)), "filas en el reporte");
+    onPreview((offset) => pivotDataset(dataset.id, buildRequest(offset)), {
+      countLabel: "filas en el reporte",
+      download: handleDownload,
+      save: handleSave,
+    });
   }
 
   async function handleSave() {

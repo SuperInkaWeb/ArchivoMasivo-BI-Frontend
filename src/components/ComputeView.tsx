@@ -14,6 +14,7 @@ import type {
   FilterGroup,
   FunctionName,
   PreviewResponse,
+  ToolPreviewOptions,
 } from "@/types";
 
 const PAGE_SIZE = 100;
@@ -120,7 +121,7 @@ interface ComputeViewProps {
   dataset: DatasetDetail;
   filter: FilterGroup | null; // filtro activo: las columnas se calculan solo sobre esas filas
   busy: boolean;
-  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, countLabel?: string) => void;
+  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, options: ToolPreviewOptions) => void;
   onSaved: (name: string) => void;
 }
 
@@ -236,7 +237,10 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
     const columns = validateAndBuild();
     if (!columns) return;
     setError(null);
-    onPreview((offset) => computeDataset(dataset.id, { filter, columns, limit: PAGE_SIZE, offset }));
+    onPreview((offset) => computeDataset(dataset.id, { filter, columns, limit: PAGE_SIZE, offset }), {
+      download: handleDownload,
+      save: handleSave,
+    });
   }
 
   async function handleSave() {
