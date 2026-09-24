@@ -10,7 +10,7 @@ import type {
   Delimiter,
   DownloadFormat,
   FilterGroup,
-  PreviewResponse,
+  ResultFetcher,
   ToolPreviewOptions,
 } from "@/types";
 
@@ -20,7 +20,7 @@ interface DedupeViewProps {
   dataset: DatasetDetail;
   filter: FilterGroup | null; // filtro activo: se quitan duplicados solo entre esas filas
   busy: boolean;
-  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, options: ToolPreviewOptions) => void;
+  onPreview: (fetcher: ResultFetcher, options: ToolPreviewOptions) => void;
   onSaved: (name: string) => void;
 }
 
@@ -43,11 +43,17 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
 
   function generate() {
     setError(null);
-    onPreview((offset) => dedupeDataset(dataset.id, { filter, key_columns: keyColumns, limit: PAGE_SIZE, offset }), {
-      countLabel: "filas únicas",
-      download: handleDownload,
-      save: () => setSaveOpen(true),
-    });
+    onPreview(
+      (offset, sort) =>
+        dedupeDataset(dataset.id, {
+          filter,
+          key_columns: keyColumns,
+          ...(sort ? { order_column: sort.column, order_direction: sort.direction } : {}),
+          limit: PAGE_SIZE,
+          offset,
+        }),
+      { countLabel: "filas únicas", sortable: true, download: handleDownload, save: () => setSaveOpen(true) },
+    );
   }
 
   async function doSave(name: string) {

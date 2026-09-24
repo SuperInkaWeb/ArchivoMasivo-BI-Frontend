@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cleanNumber, formatNumber } from "@/lib/utils";
+import type { ResultSort } from "@/types";
 
 interface DataTableProps {
   columns: string[];
@@ -16,6 +17,14 @@ interface DataTableProps {
   totalsLabel?: string;
   // Filas antes de un proceso (p. ej. eliminar duplicados): muestra cuántas se quitaron.
   totalOriginal?: number | null;
+  // Orden actual y callback para ordenar por encabezado (solo si la herramienta lo admite).
+  sort?: ResultSort | null;
+  onSort?: (column: string) => void;
+}
+
+function sortIndicator(column: string, sort: ResultSort | null | undefined): string {
+  if (!sort || sort.column !== column) return "↕";
+  return sort.direction === "asc" ? "▲" : "▼";
 }
 
 function renderCell(value: unknown): string {
@@ -44,6 +53,8 @@ export function DataTable({
   totalsRow,
   totalsLabel = "Total general",
   totalOriginal,
+  sort,
+  onSort,
 }: DataTableProps) {
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + limit, total);
@@ -77,7 +88,19 @@ export function DataTable({
                   key={column}
                   className="sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-600"
                 >
-                  {column}
+                  {onSort ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(column)}
+                      title="Ordenar por esta columna"
+                      className="flex w-full items-center justify-between gap-1.5 hover:text-slate-900"
+                    >
+                      <span className="truncate">{column}</span>
+                      <span className="text-[10px] text-slate-400">{sortIndicator(column, sort)}</span>
+                    </button>
+                  ) : (
+                    column
+                  )}
                 </th>
               ))}
             </tr>

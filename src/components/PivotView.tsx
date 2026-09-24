@@ -15,7 +15,7 @@ import type {
   FilterGroup,
   Measure,
   PivotSort,
-  PreviewResponse,
+  ResultFetcher,
   ToolPreviewOptions,
 } from "@/types";
 
@@ -39,7 +39,7 @@ interface PivotViewProps {
   dataset: DatasetDetail;
   filter: FilterGroup | null; // filtro activo: el reporte se calcula solo sobre esas filas
   busy: boolean;
-  onPreview: (fetcher: (offset: number) => Promise<PreviewResponse>, options: ToolPreviewOptions) => void;
+  onPreview: (fetcher: ResultFetcher, options: ToolPreviewOptions) => void;
   onSaved: (name: string) => void;
 }
 

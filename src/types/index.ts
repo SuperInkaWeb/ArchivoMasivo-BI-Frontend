@@ -109,9 +109,19 @@ export interface PreviewResponse {
   total_original?: number | null;
 }
 
+/** Orden de una tabla de resultados: por una columna del resultado. */
+export interface ResultSort {
+  column: string;
+  direction: SortDirection;
+}
+
+/** Trae una página del resultado, opcionalmente ordenada por una columna. */
+export type ResultFetcher = (offset: number, sort: ResultSort | null) => Promise<PreviewResponse>;
+
 /** Acciones que una herramienta registra al generar un resultado (para exportarlo desde el centro). */
 export interface ToolPreviewOptions {
   countLabel?: string;
+  sortable?: boolean; // si el resultado admite ordenar por encabezado (orden en el servidor)
   download: (format: DownloadFormat, delimiter?: Delimiter) => void | Promise<void>;
   save: () => void | Promise<void>;
 }
@@ -217,6 +227,8 @@ export interface ComputedColumn {
 export interface ComputeRequest {
   filter: FilterGroup | null;
   columns: ComputedColumn[];
+  order_column?: string;
+  order_direction?: SortDirection;
   limit: number;
   offset: number;
 }
@@ -248,6 +260,8 @@ export interface ReplacementRule {
 export interface ReplaceRequest {
   filter: FilterGroup | null;
   replacements: ReplacementRule[];
+  order_column?: string;
+  order_direction?: SortDirection;
   limit: number;
   offset: number;
 }
@@ -270,6 +284,8 @@ export interface ReplaceDownloadRequest {
 export interface DedupeRequest {
   filter: FilterGroup | null;
   key_columns: string[];
+  order_column?: string;
+  order_direction?: SortDirection;
   limit: number;
   offset: number;
 }

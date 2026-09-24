@@ -27,6 +27,8 @@ import type {
   DownloadFormat,
   FilterGroup,
   PreviewResponse,
+  ResultFetcher,
+  ResultSort,
   SortSpec,
   ToolPreviewOptions,
 } from "@/types";
@@ -72,8 +74,11 @@ export function WorkspacePage() {
   // Resultado de una herramienta (pivote/columnas/reemplazar) mostrado al centro.
   const [toolResult, setToolResult] = useState<PreviewResponse | null>(null);
   const [toolLoading, setToolLoading] = useState(false);
-  const [toolFetcher, setToolFetcher] = useState<((offset: number) => Promise<PreviewResponse>) | null>(null);
+  const [toolFetcher, setToolFetcher] = useState<ResultFetcher | null>(null);
   const [toolCountLabel, setToolCountLabel] = useState("filas");
+  // Orden de la tabla de resultados (por encabezado); solo para herramientas que lo admiten.
+  const [toolSortable, setToolSortable] = useState(false);
+  const [resultSort, setResultSort] = useState<ResultSort | null>(null);
   // Acciones de exportar/guardar de la herramienta activa, para ofrecerlas junto al resultado.
   const [toolExport, setToolExport] = useState<ToolExport | null>(null);
   const [resultDownloading, setResultDownloading] = useState(false);
@@ -128,6 +133,8 @@ export function WorkspacePage() {
     setToolLoading(false);
     setToolFetcher(null);
     setToolExport(null);
+    setToolSortable(false);
+    setResultSort(null);
   }
 
   function handleClearFilter() {
@@ -167,10 +174,10 @@ export function WorkspacePage() {
     setActiveTool((current) => (current === tool ? null : tool));
   }
 
-  function pageTool(fetcher: (offset: number) => Promise<PreviewResponse>, offset: number) {
+  function pageTool(fetcher: ResultFetcher, offset: number, sort: ResultSort | null) {
     setToolLoading(true);
     setActionError(null);
-    fetcher(offset)
+    fetcher(offset, sort)
       .then((response) => setToolResult(response))
       .catch((err) => setActionError(errorMessage(err)))
       .finally(() => setToolLoading(false));
@@ -178,14 +185,25 @@ export function WorkspacePage() {
 
   // La herramienta arma el fetcher (con su config); aquí se ejecuta y se muestra al centro.
   // Además registra sus acciones de exportar/guardar para ofrecerlas junto al resultado.
-  function runToolPreview(
-    fetcher: (offset: number) => Promise<PreviewResponse>,
-    options: ToolPreviewOptions,
-  ) {
+  function runToolPreview(fetcher: ResultFetcher, options: ToolPreviewOptions) {
     setToolFetcher(() => fetcher);
     setToolCountLabel(options.countLabel ?? "filas");
+    setToolSortable(options.sortable ?? false);
+    setResultSort(null);
     setToolExport({ download: options.download, save: options.save });
-    pageTool(fetcher, 0);
+    pageTool(fetcher, 0, null);
+  }
+
+  // Ciclo de orden al clicar un encabezado del resultado: asc -> desc -> sin orden.
+  function handleResultSort(column: string) {
+    const next: ResultSort | null =
+      !resultSort || resultSort.column !== column
+        ? { column, direction: "asc" }
+        : resultSort.direction === "asc"
+          ? { column, direction: "desc" }
+          : null;
+    setResultSort(next);
+    if (toolFetcher) pageTool(toolFetcher, 0, next);
   }
 
   async function handleDerivedSaved(name: string) {
@@ -486,7 +504,9 @@ export function WorkspacePage() {
                             countLabel={toolCountLabel}
                             totalsRow={toolResult.totals ?? null}
                             totalOriginal={toolResult.total_original ?? null}
-                            onPageChange={(offset) => toolFetcher && pageTool(toolFetcher, offset)}
+                            sort={resultSort}
+                            onSort={toolSortable ? handleResultSort : undefined}
+                            onPageChange={(offset) => toolFetcher && pageTool(toolFetcher, offset, resultSort)}
                           />
                         ) : (
                           <div className="flex items-center gap-2 p-4 text-sm text-slate-500">
