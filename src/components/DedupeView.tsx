@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormatPicker } from "@/components/FormatPicker";
+import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { dedupeDataset, downloadDedupe, saveDedupe } from "@/services/datasets";
 import { errorMessage, saveBlob } from "@/lib/utils";
@@ -28,6 +29,7 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
   const columnNames = dataset.columns.map((column) => column.name);
   const [keyColumns, setKeyColumns] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,18 +46,16 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
     onPreview((offset) => dedupeDataset(dataset.id, { filter, key_columns: keyColumns, limit: PAGE_SIZE, offset }), {
       countLabel: "filas únicas",
       download: handleDownload,
-      save: handleSave,
+      save: () => setSaveOpen(true),
     });
   }
 
-  async function handleSave() {
-    const name = window.prompt("Nombre del archivo sin duplicados:", `${dataset.original_filename} — sin duplicados`);
-    if (!name || !name.trim()) return;
+  async function doSave(name: string) {
     setSaving(true);
     setError(null);
     try {
-      await saveDedupe(dataset.id, { filter, key_columns: keyColumns, name: name.trim() });
-      onSaved(name.trim());
+      await saveDedupe(dataset.id, { filter, key_columns: keyColumns, name });
+      onSaved(name);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -134,7 +134,7 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
           {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Ver resultado
         </Button>
-        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+        <Button variant="secondary" onClick={() => setSaveOpen(true)} disabled={saving}>
           {saving ? <Spinner /> : null}
           Guardar como archivo
         </Button>
@@ -146,6 +146,17 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
+
+      <SaveAsDialog
+        open={saveOpen}
+        title="Guardar archivo sin duplicados"
+        defaultName={`${dataset.original_filename} — sin duplicados`}
+        onCancel={() => setSaveOpen(false)}
+        onConfirm={(name) => {
+          setSaveOpen(false);
+          doSave(name);
+        }}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/field";
 import { FormatPicker } from "@/components/FormatPicker";
 import { PivotFieldConfig } from "@/components/PivotFieldConfig";
+import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadPivot, pivotDataset, savePivot } from "@/services/datasets";
 import { errorMessage, saveBlob } from "@/lib/utils";
@@ -54,6 +55,7 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
   const [percentOfTotal, setPercentOfTotal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   // El "% del total" solo tiene sentido en métricas aditivas (Suma / Conteo).
@@ -105,23 +107,26 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
     onPreview((offset) => pivotDataset(dataset.id, buildRequest(offset)), {
       countLabel: "filas en el reporte",
       download: handleDownload,
-      save: handleSave,
+      save: openSave,
     });
   }
 
-  async function handleSave() {
+  function openSave() {
     const invalid = validate();
     if (invalid) {
       setError(invalid);
       return;
     }
-    const name = window.prompt("Nombre del reporte:", `${dataset.original_filename} — resumen`);
-    if (!name || !name.trim()) return;
+    setError(null);
+    setSaveOpen(true);
+  }
+
+  async function doSave(name: string) {
     setSaving(true);
     setError(null);
     try {
-      await savePivot(dataset.id, { ...buildRequest(0), name: name.trim() });
-      onSaved(name.trim());
+      await savePivot(dataset.id, { ...buildRequest(0), name });
+      onSaved(name);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -233,7 +238,7 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
           {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Generar reporte
         </Button>
-        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+        <Button variant="secondary" onClick={openSave} disabled={saving}>
           {saving ? <Spinner /> : null}
           Guardar como archivo
         </Button>
@@ -245,6 +250,18 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
+
+      <SaveAsDialog
+        open={saveOpen}
+        title="Guardar reporte"
+        label="Nombre del reporte"
+        defaultName={`${dataset.original_filename} — resumen`}
+        onCancel={() => setSaveOpen(false)}
+        onConfirm={(name) => {
+          setSaveOpen(false);
+          doSave(name);
+        }}
+      />
     </div>
   );
 }

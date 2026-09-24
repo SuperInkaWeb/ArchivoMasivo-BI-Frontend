@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormatPicker } from "@/components/FormatPicker";
+import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadReplace, replaceDataset, saveReplace } from "@/services/datasets";
@@ -47,6 +48,7 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<RuleDraft[]>([newRule(columnNames[0] ?? "")]);
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,20 +83,23 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
     setError(null);
     onPreview((offset) => replaceDataset(dataset.id, { filter, replacements, limit: PAGE_SIZE, offset }), {
       download: handleDownload,
-      save: handleSave,
+      save: openSave,
     });
   }
 
-  async function handleSave() {
+  function openSave() {
+    if (!buildRules()) return;
+    setSaveOpen(true);
+  }
+
+  async function doSave(name: string) {
     const replacements = buildRules();
     if (!replacements) return;
-    const name = window.prompt("Nombre del archivo corregido:", `${dataset.original_filename} — corregido`);
-    if (!name || !name.trim()) return;
     setSaving(true);
     setError(null);
     try {
-      await saveReplace(dataset.id, { filter, replacements, name: name.trim() });
-      onSaved(name.trim());
+      await saveReplace(dataset.id, { filter, replacements, name });
+      onSaved(name);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -214,7 +219,7 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
           {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Ver resultado
         </Button>
-        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+        <Button variant="secondary" onClick={openSave} disabled={saving}>
           {saving ? <Spinner /> : null}
           Guardar como archivo
         </Button>
@@ -226,6 +231,17 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
+
+      <SaveAsDialog
+        open={saveOpen}
+        title="Guardar archivo corregido"
+        defaultName={`${dataset.original_filename} — corregido`}
+        onCancel={() => setSaveOpen(false)}
+        onConfirm={(name) => {
+          setSaveOpen(false);
+          doSave(name);
+        }}
+      />
     </div>
   );
 }

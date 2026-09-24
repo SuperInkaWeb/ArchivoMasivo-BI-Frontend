@@ -524,6 +524,7 @@ export function WorkspacePage() {
                       <div className="shrink-0 border-t border-slate-200 px-4 py-3">
                         <DownloadBar
                           totalMatched={matchedCount}
+                          filtered={appliedFilter != null}
                           downloading={downloading}
                           onDownload={handleDownload}
                         />

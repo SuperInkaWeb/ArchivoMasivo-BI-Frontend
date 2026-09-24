@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormatPicker } from "@/components/FormatPicker";
+import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { computeDataset, downloadComputed, saveComputed } from "@/services/datasets";
@@ -149,6 +150,7 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
   const columnNames = dataset.columns.map((column) => column.name);
   const [drafts, setDrafts] = useState<ColumnDraft[]>([newColumnDraft()]);
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -239,20 +241,23 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
     setError(null);
     onPreview((offset) => computeDataset(dataset.id, { filter, columns, limit: PAGE_SIZE, offset }), {
       download: handleDownload,
-      save: handleSave,
+      save: openSave,
     });
   }
 
-  async function handleSave() {
+  function openSave() {
+    if (!validateAndBuild()) return;
+    setSaveOpen(true);
+  }
+
+  async function doSave(name: string) {
     const columns = validateAndBuild();
     if (!columns) return;
-    const name = window.prompt("Nombre del archivo nuevo:", `${dataset.original_filename} — con columnas`);
-    if (!name || !name.trim()) return;
     setSaving(true);
     setError(null);
     try {
-      await saveComputed(dataset.id, { filter, columns, limit: PAGE_SIZE, offset: 0, name: name.trim() });
-      onSaved(name.trim());
+      await saveComputed(dataset.id, { filter, columns, limit: PAGE_SIZE, offset: 0, name });
+      onSaved(name);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -467,7 +472,7 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
           {busy ? <Spinner className="border-white/40 border-t-white" /> : null}
           Ver resultado
         </Button>
-        <Button variant="secondary" onClick={handleSave} disabled={saving}>
+        <Button variant="secondary" onClick={openSave} disabled={saving}>
           {saving ? <Spinner /> : null}
           Guardar como archivo
         </Button>
@@ -479,6 +484,17 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}
+
+      <SaveAsDialog
+        open={saveOpen}
+        title="Guardar archivo con columnas"
+        defaultName={`${dataset.original_filename} — con columnas`}
+        onCancel={() => setSaveOpen(false)}
+        onConfirm={(name) => {
+          setSaveOpen(false);
+          doSave(name);
+        }}
+      />
     </div>
   );
 }
