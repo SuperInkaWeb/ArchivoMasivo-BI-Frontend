@@ -11,6 +11,7 @@ import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
 import { DedupeView } from "@/components/DedupeView";
+import { StatsView } from "@/components/StatsView";
 import { Ribbon, type WorkspaceMode } from "@/components/Ribbon";
 import { Drawer } from "@/components/Drawer";
 import { DownloadBar } from "@/components/DownloadBar";
@@ -50,6 +51,7 @@ const TOOL_TITLES: Record<WorkspaceMode, { title: string; description: string }>
   compute: { title: "Columnas calculadas", description: "Crea columnas nuevas (unir, cálculos, fechas, SI)." },
   replace: { title: "Buscar y reemplazar", description: "Corrige valores por columna con reglas." },
   dedupe: { title: "Quitar duplicados", description: "Elimina filas repetidas (por fila completa o por columnas clave)." },
+  stats: { title: "Estadísticas", description: "Perfil de una columna: conteos, mín/máx, suma y valores frecuentes." },
 };
 
 export function WorkspacePage() {
@@ -612,6 +614,14 @@ export function WorkspacePage() {
                       busy={toolLoading}
                       onPreview={runToolPreview}
                       onSaved={handleDerivedSaved}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "stats"}>
+                    <StatsView
+                      key={`stats-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
                     />
                   </div>
                 </Drawer>

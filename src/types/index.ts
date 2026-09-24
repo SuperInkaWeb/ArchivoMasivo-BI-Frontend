@@ -306,3 +306,28 @@ export interface DedupeDownloadRequest {
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }
+
+// --- Estadísticas por columna ---
+export interface StatsRequest {
+  filter: FilterGroup | null;
+  column: string;
+}
+
+export interface TopValue {
+  value: string;
+  count: number;
+}
+
+export interface ColumnStats {
+  column: string;
+  is_numeric: boolean;
+  total: number;
+  non_null: number;
+  nulls: number;
+  distinct: number;
+  minimum: string | number | null;
+  maximum: string | number | null;
+  total_sum: number | null;
+  average: number | null;
+  top_values: TopValue[];
+}

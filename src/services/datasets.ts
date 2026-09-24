@@ -12,6 +12,7 @@ import type {
   ComputeDownloadRequest,
   ComputeRequest,
   ComputeSaveRequest,
+  ColumnStats,
   DatasetDetail,
   DatasetSummary,
   DedupeDownloadRequest,
@@ -19,6 +20,7 @@ import type {
   DedupeResponse,
   DedupeSaveRequest,
   DistinctValues,
+  StatsRequest,
   DownloadRequest,
   PivotDownloadRequest,
   PivotRequest,
@@ -164,4 +166,9 @@ export function saveDedupe(datasetId: string, request: DedupeSaveRequest): Promi
 /** Descarga todas las filas sin duplicados como archivo (CSV/XLSX/TXT). */
 export function downloadDedupe(datasetId: string, request: DedupeDownloadRequest): Promise<DownloadedFile> {
   return postForFile(`/datasets/${datasetId}/dedupe/download`, request, `sin_duplicados.${request.format}`);
+}
+
+/** Perfil descriptivo de una columna (solo lectura: se reintenta ante fallo de red). */
+export function columnStats(datasetId: string, request: StatsRequest): Promise<ColumnStats> {
+  return postJson<ColumnStats>(`/datasets/${datasetId}/stats`, request, { retry: true });
 }
