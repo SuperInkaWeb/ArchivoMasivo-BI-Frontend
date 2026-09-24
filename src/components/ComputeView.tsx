@@ -5,7 +5,8 @@ import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { computeDataset, downloadComputed, saveComputed } from "@/services/datasets";
-import { errorMessage, saveBlob } from "@/lib/utils";
+import { errorMessage, isAbortError, saveBlob } from "@/lib/utils";
+import type { DownloadOptions } from "@/lib/api";
 import type {
   ComputedColumn,
   DatasetDetail,
@@ -151,7 +152,6 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
   const [drafts, setDrafts] = useState<ColumnDraft[]>([newColumnDraft()]);
   const [saving, setSaving] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateDraft(index: number, patch: Partial<ColumnDraft>) {
@@ -272,23 +272,19 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
     }
   }
 
-  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+  async function handleDownload(format: DownloadFormat, delimiter: Delimiter | undefined, options: DownloadOptions) {
     const columns = validateAndBuild();
     if (!columns) return;
-    setDownloading(true);
     setError(null);
     try {
-      const file = await downloadComputed(dataset.id, {
-        filter,
-        columns,
-        format,
-        ...(format === "txt" && delimiter ? { delimiter } : {}),
-      });
+      const file = await downloadComputed(
+        dataset.id,
+        { filter, columns, format, ...(format === "txt" && delimiter ? { delimiter } : {}) },
+        options,
+      );
       saveBlob(file.blob, file.filename);
     } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setDownloading(false);
+      if (!isAbortError(err)) setError(errorMessage(err));
     }
   }
 
@@ -487,7 +483,7 @@ export function ComputeView({ dataset, filter, busy, onPreview, onSaved }: Compu
 
       <div className="border-t border-slate-100 pt-3">
         <p className="mb-2 text-xs text-slate-500">Descarga todas las filas con las columnas nuevas.</p>
-        <FormatPicker label="Descargar columnas" downloading={downloading} onDownload={handleDownload} />
+        <FormatPicker label="Descargar columnas" onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}

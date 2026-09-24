@@ -127,17 +127,51 @@ export interface DownloadedFile {
   filename: string;
 }
 
-/** POST que devuelve un archivo binario; extrae el nombre del Content-Disposition. */
-export async function postForFile(path: string, body: unknown, fallbackName: string): Promise<DownloadedFile> {
+/** Opciones de una descarga: cancelación (AbortController) y progreso por bytes. */
+export interface DownloadOptions {
+  signal?: AbortSignal;
+  onProgress?: (fraction: number | null) => void; // null = tamaño desconocido (indeterminado)
+}
+
+/**
+ * POST que devuelve un archivo binario; extrae el nombre del Content-Disposition.
+ * Si se pasa `onProgress`, lee el cuerpo por partes para informar el avance (bytes
+ * recibidos / Content-Length) y permite cancelar con `signal`.
+ */
+export async function postForFile(
+  path: string,
+  body: unknown,
+  fallbackName: string,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
   const response = await ensureOk(
     await fetch(`${BASE_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeader()) },
       body: JSON.stringify(body),
+      signal: options?.signal,
     }),
   );
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
   const filename = match ? decodeURIComponent(match[1]) : fallbackName;
-  return { blob: await response.blob(), filename };
+
+  const total = Number(response.headers.get("Content-Length") ?? 0);
+  if (!options?.onProgress || !response.body) {
+    return { blob: await response.blob(), filename };
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  options.onProgress(total > 0 ? 0 : null);
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total > 0) options.onProgress(Math.min(received / total, 1));
+  }
+  const type = response.headers.get("Content-Type") ?? "";
+  return { blob: new Blob(chunks as BlobPart[], { type }), filename };
 }

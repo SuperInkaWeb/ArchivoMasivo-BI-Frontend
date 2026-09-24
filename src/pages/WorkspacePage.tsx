@@ -22,7 +22,8 @@ import { UserMenu } from "@/auth/UserMenu";
 import { useDatasets } from "@/hooks/useDatasets";
 import { useDatasetDetail } from "@/hooks/useDatasetDetail";
 import { changeSheet, deleteDataset, downloadDataset, uploadFile } from "@/services/datasets";
-import { errorMessage, formatNumber, saveBlob } from "@/lib/utils";
+import { errorMessage, formatNumber, isAbortError, saveBlob } from "@/lib/utils";
+import type { DownloadOptions } from "@/lib/api";
 import type {
   DatasetSummary,
   Delimiter,
@@ -85,14 +86,12 @@ export function WorkspacePage() {
   const [resultSort, setResultSort] = useState<ResultSort | null>(null);
   // Acciones de exportar/guardar de la herramienta activa, para ofrecerlas junto al resultado.
   const [toolExport, setToolExport] = useState<ToolExport | null>(null);
-  const [resultDownloading, setResultDownloading] = useState(false);
   const [resultSaving, setResultSaving] = useState(false);
   // Fuerza reiniciar el constructor de filtros al quitar el filtro desde el chip.
   const [filterResetKey, setFilterResetKey] = useState(0);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [downloading, setDownloading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -147,16 +146,17 @@ export function WorkspacePage() {
   }
 
   // Descarga/guarda el resultado mostrado al centro usando las acciones de la herramienta activa.
-  async function handleResultDownload(format: DownloadFormat, delimiter?: Delimiter) {
+  async function handleResultDownload(
+    format: DownloadFormat,
+    delimiter: Delimiter | undefined,
+    options: DownloadOptions,
+  ) {
     if (!toolExport) return;
-    setResultDownloading(true);
     setActionError(null);
     try {
-      await toolExport.download(format, delimiter);
+      await toolExport.download(format, delimiter, options);
     } catch (err) {
-      setActionError(errorMessage(err));
-    } finally {
-      setResultDownloading(false);
+      if (!isAbortError(err)) setActionError(errorMessage(err));
     }
   }
 
@@ -277,24 +277,29 @@ export function WorkspacePage() {
     }
   }
 
-  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+  async function handleDownload(
+    format: DownloadFormat,
+    delimiter: Delimiter | undefined,
+    options: DownloadOptions,
+  ) {
     if (!selectedId) return;
-    setDownloading(true);
     setActionError(null);
     try {
-      const file = await downloadDataset(selectedId, {
-        filter: appliedFilter,
-        select: [],
-        sort: sort ? [sort] : [],
-        format,
-        ...(format === "txt" && delimiter ? { delimiter } : {}),
-        ...(search.trim() ? { search: search.trim() } : {}),
-      });
+      const file = await downloadDataset(
+        selectedId,
+        {
+          filter: appliedFilter,
+          select: [],
+          sort: sort ? [sort] : [],
+          format,
+          ...(format === "txt" && delimiter ? { delimiter } : {}),
+          ...(search.trim() ? { search: search.trim() } : {}),
+        },
+        options,
+      );
       saveBlob(file.blob, file.filename);
     } catch (err) {
-      setActionError(errorMessage(err));
-    } finally {
-      setDownloading(false);
+      if (!isAbortError(err)) setActionError(errorMessage(err));
     }
   }
 
@@ -481,7 +486,6 @@ export function WorkspacePage() {
                               </button>
                               <FormatPicker
                                 label="Descargar"
-                                downloading={resultDownloading}
                                 disabled={toolLoading}
                                 onDownload={handleResultDownload}
                               />
@@ -549,7 +553,6 @@ export function WorkspacePage() {
                         <DownloadBar
                           totalMatched={matchedCount}
                           filtered={appliedFilter != null}
-                          downloading={downloading}
                           onDownload={handleDownload}
                         />
                       </div>

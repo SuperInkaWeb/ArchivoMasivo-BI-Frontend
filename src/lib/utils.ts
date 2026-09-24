@@ -37,6 +37,11 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** True si el error proviene de cancelar una petición (AbortController). */
+export function isAbortError(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "AbortError";
+}
+
 /** Dispara la descarga de un Blob en el navegador. */
 export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);

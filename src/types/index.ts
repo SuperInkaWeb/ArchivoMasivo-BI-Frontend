@@ -1,4 +1,5 @@
 /** Contratos compartidos con el backend (deben reflejar los schemas de FastAPI). */
+import type { DownloadOptions } from "@/lib/api";
 
 export type IngestStatus = "pending" | "processing" | "ready" | "failed";
 /** Cómo se creó el dataset: subido, o derivado (pivote / columnas / correcciones / sin duplicados). */
@@ -122,7 +123,7 @@ export type ResultFetcher = (offset: number, sort: ResultSort | null) => Promise
 export interface ToolPreviewOptions {
   countLabel?: string;
   sortable?: boolean; // si el resultado admite ordenar por encabezado (orden en el servidor)
-  download: (format: DownloadFormat, delimiter?: Delimiter) => void | Promise<void>;
+  download: (format: DownloadFormat, delimiter: Delimiter | undefined, options: DownloadOptions) => void | Promise<void>;
   save: () => void | Promise<void>;
 }
 

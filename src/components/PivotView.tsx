@@ -6,7 +6,8 @@ import { PivotFieldConfig } from "@/components/PivotFieldConfig";
 import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadPivot, pivotDataset, savePivot } from "@/services/datasets";
-import { errorMessage, saveBlob } from "@/lib/utils";
+import { errorMessage, isAbortError, saveBlob } from "@/lib/utils";
+import type { DownloadOptions } from "@/lib/api";
 import type {
   Aggregation,
   DatasetDetail,
@@ -56,7 +57,6 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   // El "% del total" solo tiene sentido en métricas aditivas (Suma / Conteo).
   const percentAllowed =
@@ -134,30 +134,31 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
     }
   }
 
-  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+  async function handleDownload(format: DownloadFormat, delimiter: Delimiter | undefined, options: DownloadOptions) {
     const invalid = validate();
     if (invalid) {
       setError(invalid);
       return;
     }
-    setDownloading(true);
     setError(null);
     try {
-      const file = await downloadPivot(dataset.id, {
-        filter,
-        group_by: groupBy,
-        measures,
-        pivot_column: pivotColumn || null,
-        sort: buildSort(),
-        percent_of_total: usePercent,
-        format,
-        ...(format === "txt" && delimiter ? { delimiter } : {}),
-      });
+      const file = await downloadPivot(
+        dataset.id,
+        {
+          filter,
+          group_by: groupBy,
+          measures,
+          pivot_column: pivotColumn || null,
+          sort: buildSort(),
+          percent_of_total: usePercent,
+          format,
+          ...(format === "txt" && delimiter ? { delimiter } : {}),
+        },
+        options,
+      );
       saveBlob(file.blob, file.filename);
     } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setDownloading(false);
+      if (!isAbortError(err)) setError(errorMessage(err));
     }
   }
 
@@ -246,7 +247,7 @@ export function PivotView({ dataset, filter, busy, onPreview, onSaved }: PivotVi
 
       <div className="border-t border-slate-100 pt-3">
         <p className="mb-2 text-xs text-slate-500">Descarga el reporte completo en el formato que elijas.</p>
-        <FormatPicker label="Descargar reporte" downloading={downloading} onDownload={handleDownload} />
+        <FormatPicker label="Descargar reporte" onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}

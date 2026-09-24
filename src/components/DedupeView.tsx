@@ -4,7 +4,8 @@ import { FormatPicker } from "@/components/FormatPicker";
 import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { dedupeDataset, downloadDedupe, saveDedupe } from "@/services/datasets";
-import { errorMessage, saveBlob } from "@/lib/utils";
+import { errorMessage, isAbortError, saveBlob } from "@/lib/utils";
+import type { DownloadOptions } from "@/lib/api";
 import type {
   DatasetDetail,
   Delimiter,
@@ -30,7 +31,6 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
   const [keyColumns, setKeyColumns] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const wholeRow = keyColumns.length === 0;
@@ -69,21 +69,17 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
     }
   }
 
-  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
-    setDownloading(true);
+  async function handleDownload(format: DownloadFormat, delimiter: Delimiter | undefined, options: DownloadOptions) {
     setError(null);
     try {
-      const file = await downloadDedupe(dataset.id, {
-        filter,
-        key_columns: keyColumns,
-        format,
-        ...(format === "txt" && delimiter ? { delimiter } : {}),
-      });
+      const file = await downloadDedupe(
+        dataset.id,
+        { filter, key_columns: keyColumns, format, ...(format === "txt" && delimiter ? { delimiter } : {}) },
+        options,
+      );
       saveBlob(file.blob, file.filename);
     } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setDownloading(false);
+      if (!isAbortError(err)) setError(errorMessage(err));
     }
   }
 
@@ -148,7 +144,7 @@ export function DedupeView({ dataset, filter, busy, onPreview, onSaved }: Dedupe
 
       <div className="border-t border-slate-100 pt-3">
         <p className="mb-2 text-xs text-slate-500">Descarga todas las filas sin duplicados en tu formato.</p>
-        <FormatPicker label="Descargar sin duplicados" downloading={downloading} onDownload={handleDownload} />
+        <FormatPicker label="Descargar sin duplicados" onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}

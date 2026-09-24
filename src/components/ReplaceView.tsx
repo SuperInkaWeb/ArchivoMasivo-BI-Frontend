@@ -5,7 +5,8 @@ import { SaveAsDialog } from "@/components/SaveAsDialog";
 import { Input, Select } from "@/components/ui/field";
 import { ErrorBanner, Spinner } from "@/components/ui/feedback";
 import { downloadReplace, replaceDataset, saveReplace } from "@/services/datasets";
-import { errorMessage, saveBlob } from "@/lib/utils";
+import { errorMessage, isAbortError, saveBlob } from "@/lib/utils";
+import type { DownloadOptions } from "@/lib/api";
 import type {
   DatasetDetail,
   Delimiter,
@@ -49,7 +50,6 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
   const [drafts, setDrafts] = useState<RuleDraft[]>([newRule(columnNames[0] ?? "")]);
   const [saving, setSaving] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateRule(index: number, patch: Partial<RuleDraft>) {
@@ -114,23 +114,19 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
     }
   }
 
-  async function handleDownload(format: DownloadFormat, delimiter?: Delimiter) {
+  async function handleDownload(format: DownloadFormat, delimiter: Delimiter | undefined, options: DownloadOptions) {
     const replacements = buildRules();
     if (!replacements) return;
-    setDownloading(true);
     setError(null);
     try {
-      const file = await downloadReplace(dataset.id, {
-        filter,
-        replacements,
-        format,
-        ...(format === "txt" && delimiter ? { delimiter } : {}),
-      });
+      const file = await downloadReplace(
+        dataset.id,
+        { filter, replacements, format, ...(format === "txt" && delimiter ? { delimiter } : {}) },
+        options,
+      );
       saveBlob(file.blob, file.filename);
     } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setDownloading(false);
+      if (!isAbortError(err)) setError(errorMessage(err));
     }
   }
 
@@ -234,7 +230,7 @@ export function ReplaceView({ dataset, filter, busy, onPreview, onSaved }: Repla
 
       <div className="border-t border-slate-100 pt-3">
         <p className="mb-2 text-xs text-slate-500">Descarga todas las filas ya corregidas en tu formato.</p>
-        <FormatPicker label="Descargar corregido" downloading={downloading} onDownload={handleDownload} />
+        <FormatPicker label="Descargar corregido" onDownload={handleDownload} />
       </div>
 
       {error ? <ErrorBanner message={error} /> : null}

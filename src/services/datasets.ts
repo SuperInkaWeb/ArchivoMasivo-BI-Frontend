@@ -7,6 +7,7 @@ import {
   postForFile,
   postJson,
   type DownloadedFile,
+  type DownloadOptions,
 } from "@/lib/api";
 import type {
   ComputeDownloadRequest,
@@ -90,8 +91,12 @@ export function previewDataset(datasetId: string, request: PreviewRequest): Prom
   return postJson<PreviewResponse>(`/datasets/${datasetId}/preview`, request, { retry: true });
 }
 
-export function downloadDataset(datasetId: string, request: DownloadRequest): Promise<DownloadedFile> {
-  return postForFile(`/datasets/${datasetId}/download`, request, `filtrado.${request.format}`);
+export function downloadDataset(
+  datasetId: string,
+  request: DownloadRequest,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/download`, request, `filtrado.${request.format}`, options);
 }
 
 export function columnValues(
@@ -119,8 +124,12 @@ export function savePivot(datasetId: string, request: PivotSaveRequest): Promise
 }
 
 /** Descarga el reporte pivote completo como archivo (CSV/XLSX/TXT). */
-export function downloadPivot(datasetId: string, request: PivotDownloadRequest): Promise<DownloadedFile> {
-  return postForFile(`/datasets/${datasetId}/pivot/download`, request, `reporte.${request.format}`);
+export function downloadPivot(
+  datasetId: string,
+  request: PivotDownloadRequest,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/pivot/download`, request, `reporte.${request.format}`, options);
 }
 
 /** Aplica columnas calculadas y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
@@ -134,8 +143,12 @@ export function saveComputed(datasetId: string, request: ComputeSaveRequest): Pr
 }
 
 /** Descarga todas las filas con las columnas calculadas como archivo (CSV/XLSX/TXT). */
-export function downloadComputed(datasetId: string, request: ComputeDownloadRequest): Promise<DownloadedFile> {
-  return postForFile(`/datasets/${datasetId}/compute/download`, request, `columnas.${request.format}`);
+export function downloadComputed(
+  datasetId: string,
+  request: ComputeDownloadRequest,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/compute/download`, request, `columnas.${request.format}`, options);
 }
 
 /** Aplica buscar-y-reemplazar y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
@@ -149,8 +162,12 @@ export function saveReplace(datasetId: string, request: ReplaceSaveRequest): Pro
 }
 
 /** Descarga todas las filas ya corregidas como archivo (CSV/XLSX/TXT). */
-export function downloadReplace(datasetId: string, request: ReplaceDownloadRequest): Promise<DownloadedFile> {
-  return postForFile(`/datasets/${datasetId}/replace/download`, request, `corregido.${request.format}`);
+export function downloadReplace(
+  datasetId: string,
+  request: ReplaceDownloadRequest,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/replace/download`, request, `corregido.${request.format}`, options);
 }
 
 /** Quita duplicados y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
@@ -164,8 +181,12 @@ export function saveDedupe(datasetId: string, request: DedupeSaveRequest): Promi
 }
 
 /** Descarga todas las filas sin duplicados como archivo (CSV/XLSX/TXT). */
-export function downloadDedupe(datasetId: string, request: DedupeDownloadRequest): Promise<DownloadedFile> {
-  return postForFile(`/datasets/${datasetId}/dedupe/download`, request, `sin_duplicados.${request.format}`);
+export function downloadDedupe(
+  datasetId: string,
+  request: DedupeDownloadRequest,
+  options?: DownloadOptions,
+): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/dedupe/download`, request, `sin_duplicados.${request.format}`, options);
 }
 
 /** Perfil descriptivo de una columna (solo lectura: se reintenta ante fallo de red). */
