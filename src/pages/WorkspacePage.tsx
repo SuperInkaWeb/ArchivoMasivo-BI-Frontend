@@ -10,6 +10,7 @@ import { DataTable } from "@/components/DataTable";
 import { PivotView } from "@/components/PivotView";
 import { ComputeView } from "@/components/ComputeView";
 import { ReplaceView } from "@/components/ReplaceView";
+import { DedupeView } from "@/components/DedupeView";
 import { Ribbon, type WorkspaceMode } from "@/components/Ribbon";
 import { Drawer } from "@/components/Drawer";
 import { DownloadBar } from "@/components/DownloadBar";
@@ -46,6 +47,7 @@ const TOOL_TITLES: Record<WorkspaceMode, { title: string; description: string }>
   pivot: { title: "Tabla dinámica", description: "Agrupa, calcula métricas y guarda el resumen como archivo." },
   compute: { title: "Columnas calculadas", description: "Crea columnas nuevas (unir, cálculos, fechas, SI)." },
   replace: { title: "Buscar y reemplazar", description: "Corrige valores por columna con reglas." },
+  dedupe: { title: "Quitar duplicados", description: "Elimina filas repetidas (por fila completa o por columnas clave)." },
 };
 
 export function WorkspacePage() {
@@ -483,6 +485,7 @@ export function WorkspacePage() {
                             loading={toolLoading}
                             countLabel={toolCountLabel}
                             totalsRow={toolResult.totals ?? null}
+                            totalOriginal={toolResult.total_original ?? null}
                             onPageChange={(offset) => toolFetcher && pageTool(toolFetcher, offset)}
                           />
                         ) : (
@@ -572,6 +575,17 @@ export function WorkspacePage() {
                   <div hidden={activeTool !== "replace"}>
                     <ReplaceView
                       key={`replace-${detail.id}-${detail.active_sheet ?? ""}`}
+                      dataset={detail}
+                      filter={appliedFilter}
+                      busy={toolLoading}
+                      onPreview={runToolPreview}
+                      onSaved={handleDerivedSaved}
+                    />
+                  </div>
+
+                  <div hidden={activeTool !== "dedupe"}>
+                    <DedupeView
+                      key={`dedupe-${detail.id}-${detail.active_sheet ?? ""}`}
                       dataset={detail}
                       filter={appliedFilter}
                       busy={toolLoading}

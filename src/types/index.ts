@@ -1,8 +1,8 @@
 /** Contratos compartidos con el backend (deben reflejar los schemas de FastAPI). */
 
 export type IngestStatus = "pending" | "processing" | "ready" | "failed";
-/** Cómo se creó el dataset: subido, o derivado (pivote / columnas / correcciones). */
-export type DatasetOrigin = "uploaded" | "pivot" | "computed" | "replaced";
+/** Cómo se creó el dataset: subido, o derivado (pivote / columnas / correcciones / sin duplicados). */
+export type DatasetOrigin = "uploaded" | "pivot" | "computed" | "replaced" | "deduped";
 
 export interface ColumnInfo {
   name: string;
@@ -105,6 +105,8 @@ export interface PreviewResponse {
   offset: number;
   // Fila de Total general (solo la produce el pivote); ausente en las demás vistas.
   totals?: Record<string, unknown> | null;
+  // Filas antes de quitar duplicados (solo lo produce "eliminar duplicados").
+  total_original?: number | null;
 }
 
 /** Acciones que una herramienta registra al generar un resultado (para exportarlo desde el centro). */
@@ -259,6 +261,32 @@ export interface ReplaceSaveRequest {
 export interface ReplaceDownloadRequest {
   filter: FilterGroup | null;
   replacements: ReplacementRule[];
+  format: DownloadFormat;
+  delimiter?: Delimiter; // solo se envía cuando format === "txt"
+}
+
+// --- Eliminar duplicados ---
+/** key_columns vacío = fila completa idéntica; con columnas = una fila por combinación. */
+export interface DedupeRequest {
+  filter: FilterGroup | null;
+  key_columns: string[];
+  limit: number;
+  offset: number;
+}
+
+export interface DedupeResponse extends PreviewResponse {
+  total_original: number;
+}
+
+export interface DedupeSaveRequest {
+  filter: FilterGroup | null;
+  key_columns: string[];
+  name: string;
+}
+
+export interface DedupeDownloadRequest {
+  filter: FilterGroup | null;
+  key_columns: string[];
   format: DownloadFormat;
   delimiter?: Delimiter; // solo se envía cuando format === "txt"
 }

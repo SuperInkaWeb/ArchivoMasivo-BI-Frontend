@@ -14,6 +14,8 @@ interface DataTableProps {
   // nombres de columna; las columnas sin clave quedan en blanco.
   totalsRow?: Record<string, unknown> | null;
   totalsLabel?: string;
+  // Filas antes de un proceso (p. ej. eliminar duplicados): muestra cuántas se quitaron.
+  totalOriginal?: number | null;
 }
 
 function renderCell(value: unknown): string {
@@ -41,17 +43,25 @@ export function DataTable({
   countLabel = "filas",
   totalsRow,
   totalsLabel = "Total general",
+  totalOriginal,
 }: DataTableProps) {
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + limit, total);
   const canPrev = offset > 0;
   const canNext = offset + limit < total;
+  const removed = totalOriginal != null ? totalOriginal - total : 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex shrink-0 items-center justify-between text-xs text-slate-500">
         <span>
           <strong className="text-slate-800">{formatNumber(total)}</strong> {countLabel}
+          {totalOriginal != null ? (
+            <span className="text-slate-400">
+              {" "}
+              · quitó {formatNumber(removed)} de {formatNumber(totalOriginal)}
+            </span>
+          ) : null}
         </span>
         <span>
           Mostrando {formatNumber(from)}–{formatNumber(to)}

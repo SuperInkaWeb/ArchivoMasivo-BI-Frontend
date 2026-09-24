@@ -14,6 +14,10 @@ import type {
   ComputeSaveRequest,
   DatasetDetail,
   DatasetSummary,
+  DedupeDownloadRequest,
+  DedupeRequest,
+  DedupeResponse,
+  DedupeSaveRequest,
   DistinctValues,
   DownloadRequest,
   PivotDownloadRequest,
@@ -145,4 +149,19 @@ export function saveReplace(datasetId: string, request: ReplaceSaveRequest): Pro
 /** Descarga todas las filas ya corregidas como archivo (CSV/XLSX/TXT). */
 export function downloadReplace(datasetId: string, request: ReplaceDownloadRequest): Promise<DownloadedFile> {
   return postForFile(`/datasets/${datasetId}/replace/download`, request, `corregido.${request.format}`);
+}
+
+/** Quita duplicados y devuelve la vista (solo lectura: se reintenta ante fallo de red). */
+export function dedupeDataset(datasetId: string, request: DedupeRequest): Promise<DedupeResponse> {
+  return postJson<DedupeResponse>(`/datasets/${datasetId}/dedupe`, request, { retry: true });
+}
+
+/** Guarda el resultado sin duplicados como un dataset nuevo (se materializa en segundo plano). */
+export function saveDedupe(datasetId: string, request: DedupeSaveRequest): Promise<DatasetSummary> {
+  return postJson<DatasetSummary>(`/datasets/${datasetId}/dedupe/save`, request);
+}
+
+/** Descarga todas las filas sin duplicados como archivo (CSV/XLSX/TXT). */
+export function downloadDedupe(datasetId: string, request: DedupeDownloadRequest): Promise<DownloadedFile> {
+  return postForFile(`/datasets/${datasetId}/dedupe/download`, request, `sin_duplicados.${request.format}`);
 }
